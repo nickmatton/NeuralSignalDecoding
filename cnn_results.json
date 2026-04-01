@@ -1,0 +1,26 @@
+{
+  "best_model": "single_bin",
+  "correlations": {
+    "x_pos": 0.878,
+    "y_pos": 0.807,
+    "x_vel": 0.917,
+    "y_vel": 0.902,
+    "average": 0.876
+  },
+  "all_results": {
+    "single_bin": {
+      "x_pos": 0.878,
+      "y_pos": 0.807,
+      "x_vel": 0.917,
+      "y_vel": 0.902,
+      "average": 0.876
+    },
+    "spatio_temporal": {
+      "x_pos": 0.608,
+      "y_pos": 0.615,
+      "x_vel": 0.969,
+      "y_vel": 0.96,
+      "average": 0.788
+    }
+  }
+}

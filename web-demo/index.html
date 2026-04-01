@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Decoding Demo — Nick Matton</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="../../index.html" class="header-back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                NM
+            </a>
+            <span class="header-title">Neural Decoding Demo</span>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Intro -->
+        <section class="intro">
+            <h1 class="intro-title">Decoding Motor Intent from Neural Signals</h1>
+            <p class="intro-subtitle">Comparing MLP, 2D CNN, LSTM, and Transformer architectures for brain-computer interface decoding</p>
+            <p class="intro-description">
+                This project decodes hand position and velocity from 95-channel neural spike data recorded during a center-out reaching task.
+                The goal: predict where a monkey is moving its hand using only brain signals. Four deep learning architectures were trained
+                and compared on the same dataset (<code>contdata95.mat</code>), sampled at 50ms bins.
+            </p>
+        </section>
+
+        <!-- Live Decoding Visualization -->
+        <section class="viz-section">
+            <div class="section-header">
+                <h2 class="section-title">Live Decoding Replay</h2>
+                <p class="section-desc">Watch each model attempt to decode hand position from neural activity in real-time. Blue = actual trajectory, red = model prediction.</p>
+            </div>
+
+            <div class="model-tabs">
+                <button class="model-tab active" data-model="lstm">LSTM</button>
+                <button class="model-tab" data-model="cnn">MLP</button>
+                <button class="model-tab" data-model="cnn2d">2D CNN</button>
+                <button class="model-tab" data-model="transformer">Transformer</button>
+            </div>
+
+            <div class="viz-container">
+                <div class="viz-panel viz-neural">
+                    <div class="panel-label">Neural Activity (95 channels)</div>
+                    <canvas id="neural-canvas"></canvas>
+                </div>
+                <div class="viz-divider">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </div>
+                <div class="viz-panel viz-decode">
+                    <div class="panel-label">Decoded Position</div>
+                    <canvas id="decode-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="viz-controls">
+                <button id="btn-play" class="control-btn">
+                    <svg id="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <svg id="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                </button>
+                <button id="btn-reset" class="control-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+                <div class="speed-control">
+                    <label>Speed:</label>
+                    <input type="range" id="speed-slider" min="1" max="10" value="5">
+                </div>
+                <div class="live-corr">
+                    <span class="corr-label">Correlation:</span>
+                    <span id="live-corr-value" class="corr-value">—</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architecture Comparison -->
+        <section class="compare-section">
+            <div class="section-header">
+                <h2 class="section-title">Architecture Comparison</h2>
+                <p class="section-desc">Pearson correlation between predicted and actual kinematics on the held-out test set.</p>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="bar-chart"></canvas>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-model">MLP</div>
+                    <div class="result-corr">0.876</div>
+                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-detail">
+                        <span>X pos: 0.878</span>
+                        <span>Y pos: 0.807</span>
+                        <span>X vel: 0.917</span>
+                        <span>Y vel: 0.902</span>
+                    </div>
+                </div>
+                <div class="result-card result-card-best">
+                    <div class="result-model">LSTM</div>
+                    <div class="result-corr">0.987</div>
+                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-detail">
+                        <span>X pos: 0.989</span>
+                        <span>Y pos: 0.986</span>
+                        <span>X vel: 0.987</span>
+                        <span>Y vel: 0.985</span>
+                    </div>
+                </div>
+                <div class="result-card">
+                    <div class="result-model">2D CNN</div>
+                    <div class="result-corr">0.788</div>
+                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-detail">
+                        <span>X pos: 0.608</span>
+                        <span>Y pos: 0.615</span>
+                        <span>X vel: 0.969</span>
+                        <span>Y vel: 0.960</span>
+                    </div>
+                </div>
+                <div class="result-card">
+                    <div class="result-model">Transformer</div>
+                    <div class="result-corr">0.740</div>
+                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-detail">
+                        <span>X pos: 0.683</span>
+                        <span>Y pos: 0.692</span>
+                        <span>X vel: 0.787</span>
+                        <span>Y vel: 0.798</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architecture Details -->
+        <section class="arch-section">
+            <div class="section-header">
+                <h2 class="section-title">Model Architectures</h2>
+            </div>
+
+            <div class="arch-grid">
+                <div class="arch-card">
+                    <h3 class="arch-name">Fully Connected NN</h3>
+                    <div class="arch-diagram">
+                        <div class="arch-layer">Input (95)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 64</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 64</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 128</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 128</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 256</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Output (4)</div>
+                    </div>
+                    <div class="arch-notes">
+                        BatchNorm + Dropout (0.3) after each layer. Single time-bin input — no temporal context needed.
+                    </div>
+                </div>
+
+                <div class="arch-card">
+                    <h3 class="arch-name">2D CNN</h3>
+                    <div class="arch-diagram">
+                        <div class="arch-layer">Input (1 x 32 x 95)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Conv2D 32 (k=5)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Conv2D 64 (k=5)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Conv2D 128 (k=3)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Conv2D 128 (k=3)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">AdaptiveAvgPool2D</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC 64</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Output (4)</div>
+                    </div>
+                    <div class="arch-notes">
+                        Treats (time x channels) as a grayscale image. Conv2D captures spatio-temporal patterns. BatchNorm + Dropout (0.3).
+                    </div>
+                </div>
+
+                <div class="arch-card arch-card-best">
+                    <h3 class="arch-name">LSTM</h3>
+                    <div class="arch-diagram">
+                        <div class="arch-layer">Input (32 x 95)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">BatchNorm</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">LSTM 128</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Last Hidden State</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC → Output (4)</div>
+                    </div>
+                    <div class="arch-notes">
+                        32-step sequence input captures 1.6s of temporal context. Only the final hidden state is used for prediction.
+                    </div>
+                </div>
+
+                <div class="arch-card">
+                    <h3 class="arch-name">Transformer</h3>
+                    <div class="arch-diagram">
+                        <div class="arch-layer">Input (32 x 95)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">BatchNorm</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Linear (95 → 130)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">TransformerEncoder (5 heads)</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">Mean Pool</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">FC → Output (4)</div>
+                    </div>
+                    <div class="arch-notes">
+                        Encoder-only architecture with self-attention over 32 time steps. Mean pooling across the sequence for prediction.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Key Insight -->
+        <section class="insight-section">
+            <div class="insight-card">
+                <h3 class="insight-title">Key Insight</h3>
+                <p class="insight-text">
+                    Regularization matters more than architecture complexity. The original MLP used 0.5 dropout, which
+                    hurt learning. Reducing dropout to 0.3 brought the single-bin MLP to 0.88 average correlation.
+                    The LSTM dominates at 0.987 correlation, benefiting from recurrent memory over 32 time steps.
+                    The 2D CNN (0.79) captures spatio-temporal patterns but struggles with position decoding.
+                    The Transformer (0.74) underperforms here likely due to limited hyperparameter tuning and
+                    the small dataset size.
+                </p>
+            </div>
+        </section>
+
+        <!-- Original Plots -->
+        <section class="plots-section">
+            <div class="section-header">
+                <h2 class="section-title">Original Results</h2>
+                <p class="section-desc">Decoded trajectories from the notebooks. Blue = actual, Red = predicted.</p>
+            </div>
+
+            <div class="plots-grid">
+                <div class="plot-card">
+                    <h3 class="plot-label">MLP Decode</h3>
+                    <img src="../single_bin_cnn_decode.png" alt="MLP predicted vs actual hand position">
+                    <p class="plot-caption">With proper regularization (dropout 0.3), the MLP achieves 0.876 average correlation from single time-bin inputs.</p>
+                </div>
+                <div class="plot-card">
+                    <h3 class="plot-label">2D CNN Decode</h3>
+                    <img src="../spatio_temporal_cnn_decode.png" alt="2D CNN predicted vs actual hand position">
+                    <p class="plot-caption">The 2D CNN excels at velocity (0.97) but is weaker on position (0.61), averaging 0.79 correlation.</p>
+                </div>
+                <div class="plot-card">
+                    <h3 class="plot-label">LSTM Decode</h3>
+                    <img src="../lstm_decode.png" alt="LSTM predicted vs actual hand position">
+                    <p class="plot-caption">The LSTM nearly perfectly tracks the actual trajectory, achieving 0.987 average correlation.</p>
+                </div>
+                <div class="plot-card">
+                    <h3 class="plot-label">Transformer Decode</h3>
+                    <img src="../transformer_decode.png" alt="Transformer predicted vs actual hand position">
+                    <p class="plot-caption">The Transformer achieves 0.74 average correlation, likely limited by overfitting on the small dataset.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Nick Matton — BME 517, University of Michigan</p>
+    </footer>
+
+    <script src="demo.js"></script>
+</body>
+</html>

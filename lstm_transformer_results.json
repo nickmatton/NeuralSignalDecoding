@@ -1,0 +1,16 @@
+{
+  "lstm": {
+    "x_pos": 0.989,
+    "y_pos": 0.986,
+    "x_vel": 0.987,
+    "y_vel": 0.985,
+    "average": 0.987
+  },
+  "transformer": {
+    "x_pos": 0.683,
+    "y_pos": 0.692,
+    "x_vel": 0.787,
+    "y_vel": 0.798,
+    "average": 0.74
+  }
+}
