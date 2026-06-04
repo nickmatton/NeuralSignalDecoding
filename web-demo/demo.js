@@ -44,6 +44,7 @@
     // Display order for tabs / chart / cards.
     const MODEL_ORDER = ['lstm', 'mlp', 'cnn2d', 'transformer'];
     const models = {};
+    let posAbsMax = 1e-6;
     for (const key of MODEL_ORDER) {
         const m = R.models[key];
         if (!m) continue;
@@ -53,31 +54,13 @@
             xPred: Float32Array.from(m.pred.x_pos),
             yPred: Float32Array.from(m.pred.y_pos),
         };
+        for (let i = 0; i < NUM_POINTS; i++) {
+            posAbsMax = Math.max(posAbsMax, Math.abs(m.pred.x_pos[i]), Math.abs(m.pred.y_pos[i]));
+        }
     }
-
-    // --- Decode-view geometry ---
-    // The hand trajectory is a center-out reaching pattern: it sits near its
-    // mean most of the time (std ~28) with occasional reaches to ±100. Center
-    // the view on the actual-trajectory mean and scale by a robust spread (a
-    // high percentile of the centered extent across actual + all predictions),
-    // NOT the global max — otherwise the rare reaches squish typical motion
-    // into a blob at the origin.
-    let viewCx = 0, viewCy = 0;
-    for (let i = 0; i < NUM_POINTS; i++) { viewCx += traj.xActual[i]; viewCy += traj.yActual[i]; }
-    viewCx /= NUM_POINTS; viewCy /= NUM_POINTS;
-
-    const radii = [];
-    const pushRadius = (x, y) => radii.push(Math.max(Math.abs(x - viewCx), Math.abs(y - viewCy)));
-    for (let i = 0; i < NUM_POINTS; i++) pushRadius(traj.xActual[i], traj.yActual[i]);
-    for (const key of MODEL_ORDER) {
-        const m = models[key];
-        if (!m) continue;
-        for (let i = 0; i < NUM_POINTS; i++) pushRadius(m.xPred[i], m.yPred[i]);
+    for (let i = 0; i < NUM_POINTS; i++) {
+        posAbsMax = Math.max(posAbsMax, Math.abs(traj.xActual[i]), Math.abs(traj.yActual[i]));
     }
-    radii.sort((a, b) => a - b);
-    // 92nd percentile: typical motion fills the panel; the biggest reaches may
-    // extend slightly past the edge (acceptable).
-    const viewRadius = Math.max(radii[Math.floor(radii.length * 0.92)] || 1, 1e-6);
 
     // --- Canvas setup ---
     const neuralCanvas = document.getElementById('neural-canvas');
@@ -101,10 +84,15 @@
 
     // --- State ---
     let currentModel = 'lstm';
-    let currentFrame = 0;
+    let currentFrame = 0;      // integer bin index used for drawing
+    let playhead = 0;          // float position, advanced by real elapsed time
+    let lastTs = null;         // timestamp of previous animation frame
     let isPlaying = false;
     let animId = null;
     let speed = 2;
+    // Bins advanced per second of wall-clock, per unit of `speed`. Data is 50 ms
+    // per bin, so speed 2 ≈ real time (20 bins/s); the slider (1–10) scales it.
+    const BINS_PER_SEC_PER_SPEED = 10;
     const WINDOW = 80; // frames visible at a time
 
     // --- Draw spike-count traces (subset of channels) ---
@@ -179,11 +167,11 @@
         const model = models[currentModel];
         const midX = w / 2;
         const midY = h / 2;
-        // Map the robust spread (centered on the trajectory mean) to ~45% of the
-        // smaller canvas dimension so typical motion fills the panel.
-        const scale = (Math.min(w, h) * 0.45) / viewRadius;
-        const sx = (x) => midX + (x - viewCx) * scale;
-        const sy = (y) => midY - (y - viewCy) * scale;
+        // Fit the full position range into ~40% of the smaller canvas dimension
+        // so the whole trajectory stays inside the panel.
+        const scale = (Math.min(w, h) * 0.4) / posAbsMax;
+        const sx = (x) => midX + x * scale;
+        const sy = (y) => midY - y * scale;
 
         // Grid/crosshair
         decodeCtx.strokeStyle = '#E5E4E0';
@@ -196,7 +184,7 @@
         decodeCtx.stroke();
 
         // Trail
-        const trailLen = Math.min(32, currentFrame);
+        const trailLen = Math.min(40, currentFrame);
         const startF = currentFrame - trailLen;
 
         if (trailLen > 1) {
@@ -259,11 +247,18 @@
         document.getElementById('live-corr-value').textContent = model.corr.average.toFixed(3);
     }
 
-    // --- Animation loop ---
-    function animate() {
+    // --- Animation loop (time-based, so playback speed is independent of the
+    // display's refresh rate) ---
+    function animate(ts) {
         if (!isPlaying) return;
-        currentFrame += speed;
-        if (currentFrame >= NUM_POINTS - 1) currentFrame = 0;
+        if (lastTs === null) lastTs = ts;
+        const dt = Math.min((ts - lastTs) / 1000, 0.1); // seconds, clamped on tab-switch
+        lastTs = ts;
+
+        playhead += speed * BINS_PER_SEC_PER_SPEED * dt;
+        if (playhead >= NUM_POINTS - 1) playhead = 0;
+        currentFrame = Math.floor(playhead);
+
         drawNeural();
         drawHeatmap();
         drawDecode();
@@ -272,9 +267,10 @@
 
     function startPlaying() {
         isPlaying = true;
+        lastTs = null; // reset clock so dt starts fresh
         document.getElementById('icon-play').style.display = 'none';
         document.getElementById('icon-pause').style.display = 'block';
-        animate();
+        animId = requestAnimationFrame(animate);
     }
 
     function stopPlaying() {
@@ -384,6 +380,7 @@
     document.getElementById('btn-reset').addEventListener('click', () => {
         stopPlaying();
         currentFrame = 0;
+        playhead = 0;
         drawNeural();
         drawHeatmap();
         drawDecode();
