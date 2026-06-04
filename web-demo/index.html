@@ -34,6 +34,24 @@
             </p>
         </section>
 
+        <!-- Approach -->
+        <section class="viz-section">
+            <div class="section-header">
+                <h2 class="section-title">How the models were trained</h2>
+                <p class="intro-description">
+                    Each architecture maps neural activity to the four kinematic targets. We split the 31,413 time bins
+                    70/15/15 <strong>along time</strong> — never shuffling, so every model is tested on a future segment it
+                    never saw during training — and z-scored the spike counts using <strong>training statistics only</strong>.
+                    Models were trained with Adam and an MSE loss, with early stopping on a validation set; the LSTM and
+                    Transformer read a 32-bin (1.6&nbsp;s) sliding window of context, while the MLP decodes from a single
+                    50&nbsp;ms bin. Rather than trust a single run, we trained every model across <strong>5 random seeds</strong>
+                    on a GPU and report the mean&nbsp;±&nbsp;standard deviation. The biggest gain came from a fix, not a
+                    hyperparameter: adding sinusoidal <strong>positional encoding</strong> let the Transformer use temporal
+                    order, lifting it from r&nbsp;=&nbsp;0.74 to 0.982 — essentially matching the best model, the LSTM (0.986).
+                </p>
+            </div>
+        </section>
+
         <!-- Live Decoding Visualization -->
         <section class="viz-section">
             <div class="section-header">
