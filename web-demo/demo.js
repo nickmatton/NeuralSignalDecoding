@@ -44,7 +44,6 @@
     // Display order for tabs / chart / cards.
     const MODEL_ORDER = ['lstm', 'mlp', 'cnn2d', 'transformer'];
     const models = {};
-    let posAbsMax = 1e-6;
     for (const key of MODEL_ORDER) {
         const m = R.models[key];
         if (!m) continue;
@@ -54,13 +53,31 @@
             xPred: Float32Array.from(m.pred.x_pos),
             yPred: Float32Array.from(m.pred.y_pos),
         };
-        for (let i = 0; i < NUM_POINTS; i++) {
-            posAbsMax = Math.max(posAbsMax, Math.abs(m.pred.x_pos[i]), Math.abs(m.pred.y_pos[i]));
-        }
     }
-    for (let i = 0; i < NUM_POINTS; i++) {
-        posAbsMax = Math.max(posAbsMax, Math.abs(traj.xActual[i]), Math.abs(traj.yActual[i]));
+
+    // --- Decode-view geometry ---
+    // The hand trajectory is a center-out reaching pattern: it sits near its
+    // mean most of the time (std ~28) with occasional reaches to ±100. Center
+    // the view on the actual-trajectory mean and scale by a robust spread (a
+    // high percentile of the centered extent across actual + all predictions),
+    // NOT the global max — otherwise the rare reaches squish typical motion
+    // into a blob at the origin.
+    let viewCx = 0, viewCy = 0;
+    for (let i = 0; i < NUM_POINTS; i++) { viewCx += traj.xActual[i]; viewCy += traj.yActual[i]; }
+    viewCx /= NUM_POINTS; viewCy /= NUM_POINTS;
+
+    const radii = [];
+    const pushRadius = (x, y) => radii.push(Math.max(Math.abs(x - viewCx), Math.abs(y - viewCy)));
+    for (let i = 0; i < NUM_POINTS; i++) pushRadius(traj.xActual[i], traj.yActual[i]);
+    for (const key of MODEL_ORDER) {
+        const m = models[key];
+        if (!m) continue;
+        for (let i = 0; i < NUM_POINTS; i++) pushRadius(m.xPred[i], m.yPred[i]);
     }
+    radii.sort((a, b) => a - b);
+    // 92nd percentile: typical motion fills the panel; the biggest reaches may
+    // extend slightly past the edge (acceptable).
+    const viewRadius = Math.max(radii[Math.floor(radii.length * 0.92)] || 1, 1e-6);
 
     // --- Canvas setup ---
     const neuralCanvas = document.getElementById('neural-canvas');
@@ -87,7 +104,7 @@
     let currentFrame = 0;
     let isPlaying = false;
     let animId = null;
-    let speed = 5;
+    let speed = 2;
     const WINDOW = 80; // frames visible at a time
 
     // --- Draw spike-count traces (subset of channels) ---
@@ -162,8 +179,11 @@
         const model = models[currentModel];
         const midX = w / 2;
         const midY = h / 2;
-        // Fit the real position range into ~40% of the smaller canvas dimension.
-        const scale = (Math.min(w, h) * 0.4) / posAbsMax;
+        // Map the robust spread (centered on the trajectory mean) to ~45% of the
+        // smaller canvas dimension so typical motion fills the panel.
+        const scale = (Math.min(w, h) * 0.45) / viewRadius;
+        const sx = (x) => midX + (x - viewCx) * scale;
+        const sy = (y) => midY - (y - viewCy) * scale;
 
         // Grid/crosshair
         decodeCtx.strokeStyle = '#E5E4E0';
@@ -176,7 +196,7 @@
         decodeCtx.stroke();
 
         // Trail
-        const trailLen = Math.min(40, currentFrame);
+        const trailLen = Math.min(32, currentFrame);
         const startF = currentFrame - trailLen;
 
         if (trailLen > 1) {
@@ -184,8 +204,8 @@
             decodeCtx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
             decodeCtx.lineWidth = 2;
             for (let f = startF; f < currentFrame; f++) {
-                const px = midX + traj.xActual[f] * scale;
-                const py = midY - traj.yActual[f] * scale;
+                const px = sx(traj.xActual[f]);
+                const py = sy(traj.yActual[f]);
                 if (f === startF) decodeCtx.moveTo(px, py);
                 else decodeCtx.lineTo(px, py);
             }
@@ -195,8 +215,8 @@
             decodeCtx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
             decodeCtx.lineWidth = 2;
             for (let f = startF; f < currentFrame; f++) {
-                const px = midX + model.xPred[f] * scale;
-                const py = midY - model.yPred[f] * scale;
+                const px = sx(model.xPred[f]);
+                const py = sy(model.yPred[f]);
                 if (f === startF) decodeCtx.moveTo(px, py);
                 else decodeCtx.lineTo(px, py);
             }
@@ -204,15 +224,15 @@
         }
 
         if (currentFrame > 0) {
-            const ax = midX + traj.xActual[currentFrame] * scale;
-            const ay = midY - traj.yActual[currentFrame] * scale;
+            const ax = sx(traj.xActual[currentFrame]);
+            const ay = sy(traj.yActual[currentFrame]);
             decodeCtx.beginPath();
             decodeCtx.arc(ax, ay, 6, 0, Math.PI * 2);
             decodeCtx.fillStyle = '#3B82F6';
             decodeCtx.fill();
 
-            const px = midX + model.xPred[currentFrame] * scale;
-            const py = midY - model.yPred[currentFrame] * scale;
+            const px = sx(model.xPred[currentFrame]);
+            const py = sy(model.yPred[currentFrame]);
             decodeCtx.beginPath();
             decodeCtx.arc(px, py, 6, 0, Math.PI * 2);
             decodeCtx.fillStyle = '#EF4444';
