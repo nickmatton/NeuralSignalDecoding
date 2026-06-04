@@ -1,0 +1,12 @@
+# Secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+
+# Training run logs
+train_cnn_run.log
+train_all_run.log
+sweep.log

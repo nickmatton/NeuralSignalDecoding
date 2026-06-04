@@ -186,7 +186,21 @@ body {
     padding: 0.5rem;
 }
 
-.viz-neural { border-right: 1px solid var(--border-subtle); }
+.viz-neural {
+    border-right: 1px solid var(--border-subtle);
+    flex-direction: column;
+    display: flex;
+    padding: 0;
+}
+
+.viz-subpanel {
+    flex: 1;
+    position: relative;
+    padding: 0.5rem;
+    min-height: 0;
+}
+
+.viz-subpanel + .viz-subpanel { border-top: 1px solid var(--border-subtle); }
 
 .panel-label {
     font-family: var(--font-heading);

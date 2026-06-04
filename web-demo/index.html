@@ -27,9 +27,10 @@
             <h1 class="intro-title">Decoding Motor Intent from Neural Signals</h1>
             <p class="intro-subtitle">Comparing MLP, 2D CNN, LSTM, and Transformer architectures for brain-computer interface decoding</p>
             <p class="intro-description">
-                This project decodes hand position and velocity from 95-channel neural spike data recorded during a center-out reaching task.
-                The goal: predict where a monkey is moving its hand using only brain signals. Four deep learning architectures were trained
-                and compared on the same dataset (<code>contdata95.mat</code>), sampled at 50ms bins.
+                This project decodes hand position and velocity from 95-channel motor-cortex spike-count data recorded during a reaching task.
+                The goal: predict where the hand is moving using only neural activity. Four deep learning architectures were trained
+                and compared on the same dataset (<code>contdata95.mat</code>), sampled at 50ms bins. The live replay below shows
+                <strong>real decoded trajectories on held-out test data</strong> — exported directly from the trained models.
             </p>
         </section>
 
@@ -42,15 +43,21 @@
 
             <div class="model-tabs">
                 <button class="model-tab active" data-model="lstm">LSTM</button>
-                <button class="model-tab" data-model="cnn">MLP</button>
+                <button class="model-tab" data-model="mlp">MLP</button>
                 <button class="model-tab" data-model="cnn2d">2D CNN</button>
                 <button class="model-tab" data-model="transformer">Transformer</button>
             </div>
 
             <div class="viz-container">
                 <div class="viz-panel viz-neural">
-                    <div class="panel-label">Neural Activity (95 channels)</div>
-                    <canvas id="neural-canvas"></canvas>
+                    <div class="viz-subpanel">
+                        <div class="panel-label">Spike Traces (24 of 95 ch)</div>
+                        <canvas id="neural-canvas"></canvas>
+                    </div>
+                    <div class="viz-subpanel">
+                        <div class="panel-label">Spike-Count Heatmap (95 channels)</div>
+                        <canvas id="heatmap-canvas"></canvas>
+                    </div>
                 </div>
                 <div class="viz-divider">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -92,7 +99,7 @@
             </div>
 
             <div class="results-grid">
-                <div class="result-card">
+                <div class="result-card" data-model="mlp">
                     <div class="result-model">MLP</div>
                     <div class="result-corr">0.876</div>
                     <div class="result-label">Avg Correlation</div>
@@ -103,7 +110,7 @@
                         <span>Y vel: 0.902</span>
                     </div>
                 </div>
-                <div class="result-card result-card-best">
+                <div class="result-card result-card-best" data-model="lstm">
                     <div class="result-model">LSTM</div>
                     <div class="result-corr">0.987</div>
                     <div class="result-label">Avg Correlation</div>
@@ -114,7 +121,7 @@
                         <span>Y vel: 0.985</span>
                     </div>
                 </div>
-                <div class="result-card">
+                <div class="result-card" data-model="cnn2d">
                     <div class="result-model">2D CNN</div>
                     <div class="result-corr">0.788</div>
                     <div class="result-label">Avg Correlation</div>
@@ -125,7 +132,7 @@
                         <span>Y vel: 0.960</span>
                     </div>
                 </div>
-                <div class="result-card">
+                <div class="result-card" data-model="transformer">
                     <div class="result-model">Transformer</div>
                     <div class="result-corr">0.740</div>
                     <div class="result-label">Avg Correlation</div>
@@ -219,14 +226,16 @@
                         <div class="arch-arrow"></div>
                         <div class="arch-layer">Linear (95 → 130)</div>
                         <div class="arch-arrow"></div>
-                        <div class="arch-layer">TransformerEncoder (5 heads)</div>
+                        <div class="arch-layer">+ Positional Encoding</div>
+                        <div class="arch-arrow"></div>
+                        <div class="arch-layer">TransformerEncoder (10 heads)</div>
                         <div class="arch-arrow"></div>
                         <div class="arch-layer">Mean Pool</div>
                         <div class="arch-arrow"></div>
                         <div class="arch-layer">FC → Output (4)</div>
                     </div>
                     <div class="arch-notes">
-                        Encoder-only architecture with self-attention over 32 time steps. Mean pooling across the sequence for prediction.
+                        Encoder-only self-attention over 32 time steps. Sinusoidal positional encoding injects temporal order before attention; mean pooling across the sequence for prediction.
                     </div>
                 </div>
             </div>
@@ -237,12 +246,14 @@
             <div class="insight-card">
                 <h3 class="insight-title">Key Insight</h3>
                 <p class="insight-text">
-                    Regularization matters more than architecture complexity. The original MLP used 0.5 dropout, which
-                    hurt learning. Reducing dropout to 0.3 brought the single-bin MLP to 0.88 average correlation.
-                    The LSTM dominates at 0.987 correlation, benefiting from recurrent memory over 32 time steps.
-                    The 2D CNN (0.79) captures spatio-temporal patterns but struggles with position decoding.
-                    The Transformer (0.74) underperforms here likely due to limited hyperparameter tuning and
-                    the small dataset size.
+                    The biggest lever was a bug fix, not a hyperparameter. The Transformer originally scored
+                    0.74 — because it had <em>no positional encoding</em>, self-attention saw the 32-step window as an
+                    unordered set and couldn't use time. Adding sinusoidal positional encoding lifted it to
+                    <strong>0.982</strong>, essentially matching the LSTM (<strong>0.986</strong>). Given 1.6&nbsp;s of temporal
+                    context, both sequence models decode kinematics almost perfectly. The single-bin MLP is a strong,
+                    cheap baseline (0.88) from one 50&nbsp;ms bin, while the 2D CNN (0.84&nbsp;±&nbsp;0.05) is the most
+                    seed-sensitive — strong on velocity, weaker on absolute position. Reported numbers are
+                    mean&nbsp;±&nbsp;std over 5 seeds (Lambda&nbsp;GPU sweep).
                 </p>
             </div>
         </section>
@@ -250,30 +261,30 @@
         <!-- Original Plots -->
         <section class="plots-section">
             <div class="section-header">
-                <h2 class="section-title">Original Results</h2>
-                <p class="section-desc">Decoded trajectories from the notebooks. Blue = actual, Red = predicted.</p>
+                <h2 class="section-title">Decoded Trajectories</h2>
+                <p class="section-desc">Held-out test-set decoding (representative seed). Blue = actual, Red = predicted.</p>
             </div>
 
             <div class="plots-grid">
                 <div class="plot-card">
                     <h3 class="plot-label">MLP Decode</h3>
-                    <img src="../single_bin_cnn_decode.png" alt="MLP predicted vs actual hand position">
-                    <p class="plot-caption">With proper regularization (dropout 0.3), the MLP achieves 0.876 average correlation from single time-bin inputs.</p>
+                    <img src="../results/single_bin_cnn_decode.png" alt="MLP predicted vs actual hand position">
+                    <p class="plot-caption">From a single 50 ms bin (no temporal context), the MLP reaches 0.88 average correlation — a strong, cheap baseline.</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">2D CNN Decode</h3>
-                    <img src="../spatio_temporal_cnn_decode.png" alt="2D CNN predicted vs actual hand position">
-                    <p class="plot-caption">The 2D CNN excels at velocity (0.97) but is weaker on position (0.61), averaging 0.79 correlation.</p>
+                    <img src="../results/spatio_temporal_cnn_decode.png" alt="2D CNN predicted vs actual hand position">
+                    <p class="plot-caption">The 2D CNN excels at velocity (~0.96) but is weaker on absolute position (~0.60); most seed-sensitive at 0.84 ± 0.05.</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">LSTM Decode</h3>
-                    <img src="../lstm_decode.png" alt="LSTM predicted vs actual hand position">
-                    <p class="plot-caption">The LSTM nearly perfectly tracks the actual trajectory, achieving 0.987 average correlation.</p>
+                    <img src="../results/lstm_decode.png" alt="LSTM predicted vs actual hand position">
+                    <p class="plot-caption">The LSTM nearly perfectly tracks the actual trajectory — best overall at 0.986 ± 0.000 (most stable across seeds).</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">Transformer Decode</h3>
-                    <img src="../transformer_decode.png" alt="Transformer predicted vs actual hand position">
-                    <p class="plot-caption">The Transformer achieves 0.74 average correlation, likely limited by overfitting on the small dataset.</p>
+                    <img src="../results/transformer_decode.png" alt="Transformer predicted vs actual hand position">
+                    <p class="plot-caption">After adding positional encoding, the Transformer reaches 0.982 ± 0.001 — up from 0.74 when temporal order was ignored.</p>
                 </div>
             </div>
         </section>
@@ -283,6 +294,7 @@
         <p>Nick Matton — BME 517, University of Michigan</p>
     </footer>
 
+    <script src="results.js"></script>
     <script src="demo.js"></script>
 </body>
 </html>

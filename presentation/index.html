@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neural Signal Decoding — Nick Matton</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css">
+  <style>
+    :root { --accent: #3B82F6; --ink: #1A1A1A; }
+    .reveal { font-family: 'Inter', system-ui, sans-serif; color: var(--ink); }
+    .reveal h1, .reveal h2, .reveal h3 { font-weight: 600; letter-spacing: -0.01em; text-transform: none; }
+    .reveal h1 { font-size: 2.1em; }
+    .reveal section { text-align: left; }
+    .reveal .center { text-align: center; }
+    .reveal .subtitle { color: #6B6B6B; font-weight: 400; }
+    .reveal table { font-size: 0.7em; }
+    .reveal table th { background: #F5F5F3; }
+    .reveal .best { background: #EAF2FF; font-weight: 600; }
+    .reveal code { font-family: 'JetBrains Mono', monospace; }
+    .reveal .small { font-size: 0.75em; }
+    .reveal .tag { display: inline-block; background: #F0F0EE; border-radius: 4px; padding: 2px 8px; font-size: 0.6em; font-family: 'JetBrains Mono', monospace; color: #6B6B6B; margin-right: 4px; }
+    .reveal .bug { border-left: 3px solid #EF4444; padding-left: 12px; margin: 6px 0; }
+    .reveal .fix { border-left: 3px solid #22C55E; padding-left: 12px; margin: 6px 0; }
+    .reveal .cols { display: flex; gap: 28px; align-items: flex-start; }
+    .reveal .cols > div { flex: 1; }
+    .reveal img.plot { max-height: 380px; border: 1px solid #E5E4E0; border-radius: 6px; background: #fff; }
+    .reveal .muted { color: #6B6B6B; }
+    .reveal .kpi { font-size: 1.6em; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .reveal ul { margin-left: 0.6em; }
+  </style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+  <!-- 1. Title -->
+  <section class="center" data-background-color="#FAFAF8">
+    <h1>Decoding Motor Intent from Neural Signals</h1>
+    <p class="subtitle">Comparing MLP · 2D CNN · LSTM · Transformer for brain-computer interface decoding</p>
+    <p class="small muted">Nick Matton &nbsp;·&nbsp; BME 517, University of Michigan</p>
+    <p class="small"><span class="tag">PyTorch</span><span class="tag">95-ch motor cortex spikes</span><span class="tag">multi-seed sweep on Lambda GPU</span></p>
+  </section>
+
+  <!-- 2. Problem -->
+  <section>
+    <h2>The problem</h2>
+    <div class="cols">
+      <div>
+        <p>Given <strong>neural activity</strong> from 95 motor-cortex channels, predict the <strong>hand kinematics</strong> the subject is producing:</p>
+        <ul>
+          <li>X / Y <strong>position</strong></li>
+          <li>X / Y <strong>velocity</strong></li>
+        </ul>
+        <p class="small muted">This is the core decoding step in an intracortical brain-computer interface (BCI) — turning spikes into intended movement.</p>
+      </div>
+      <div>
+        <p class="small"><strong>Metric:</strong> Pearson correlation <code>r</code> between predicted and actual kinematics on a held-out test set, per channel, averaged.</p>
+        <p class="small"><strong>Why hard:</strong> spike counts are noisy, sparse, and high-dimensional; the mapping to smooth kinematics is nonlinear and temporal.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Dataset -->
+  <section>
+    <h2>Dataset &amp; setup</h2>
+    <ul>
+      <li><code>contdata95.mat</code> — <strong>31,413</strong> time bins @ <strong>50 ms</strong> (~26 min of recording)</li>
+      <li>Inputs: <strong>95</strong> channels of integer <strong>spike counts</strong> (0–21 per bin)</li>
+      <li>Targets: <strong>4</strong> kinematic variables (X/Y position, X/Y velocity)</li>
+      <li><strong>Temporal split</strong> 70 / 15 / 15 — never shuffle across time (avoids leakage)</li>
+      <li>Z-score normalization using <strong>train statistics only</strong></li>
+      <li>Sequence models see a <strong>32-bin (1.6 s) window</strong> of context</li>
+    </ul>
+    <p class="small muted">Spike counts — not ECoG voltages. (Fixing that mislabel was one of the bugs below.)</p>
+  </section>
+
+  <!-- 4. Methods -->
+  <section>
+    <h2>Four architectures</h2>
+    <div class="cols small">
+      <div>
+        <h3>MLP</h3>
+        <p class="muted">Single 50 ms bin → 5-layer fully-connected net. No temporal context. Fast baseline.</p>
+        <h3>2D CNN</h3>
+        <p class="muted">Treats the 32×95 (time×channel) window as an image; 4 conv blocks + global pool.</p>
+      </div>
+      <div>
+        <h3>LSTM</h3>
+        <p class="muted">Recurrent over the 32-bin sequence; final hidden state → kinematics.</p>
+        <h3>Transformer</h3>
+        <p class="muted">Encoder-only self-attention over 32 steps, <strong>+ sinusoidal positional encoding</strong>, mean-pooled.</p>
+      </div>
+    </div>
+    <p class="small">Shared training: Adam, MSE loss, ReduceLROnPlateau, early stopping (patience 15), weight decay on weights only.</p>
+  </section>
+
+  <!-- 5. Engineering story: the audit -->
+  <section>
+    <h2>I started by auditing the code</h2>
+    <p>Before trusting any number, I reviewed the training pipeline. Found <strong>8 issues</strong> across correctness, reproducibility, and honesty:</p>
+    <div class="cols small">
+      <div>
+        <div class="bug"><strong>Crash / non-reproducible:</strong> plots written to a non-existent <code>../../demos/</code> path — script died before saving results.</div>
+        <div class="bug"><strong>Modeling bug:</strong> Transformer had <em>no positional encoding</em> → permutation-invariant; couldn't use time order.</div>
+        <div class="bug"><strong>No seeding:</strong> committed numbers couldn't be reproduced.</div>
+        <div class="bug"><strong>Fabricated demo:</strong> web demo faked predictions from the answer; "neural" data derived from the trajectory.</div>
+      </div>
+      <div>
+        <div class="bug"><strong>Mislabeled data:</strong> integer spike counts called "ECoG voltages."</div>
+        <div class="bug"><strong>Misnamed model:</strong> a pure MLP called "CNN."</div>
+        <div class="bug"><strong>Regularization:</strong> weight decay applied to BatchNorm/bias params.</div>
+        <div class="bug"><strong>Broken demo asset paths</strong> → result plots 404'd.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Fixes -->
+  <section>
+    <h2>… then fixed them, surgically</h2>
+    <div class="cols small">
+      <div>
+        <div class="fix">Corrected output paths → <code>results/</code>; deterministic <code>set_seed()</code> across Python/NumPy/Torch.</div>
+        <div class="fix">Added sinusoidal <strong>positional encoding</strong> to the Transformer; even head count.</div>
+        <div class="fix">Excluded BatchNorm/bias from weight decay (standard practice).</div>
+      </div>
+      <div>
+        <div class="fix">Rewrote the demo to load <strong>real exported predictions</strong> on real held-out spike data — nothing synthetic.</div>
+        <div class="fix">Fixed terminology (spike counts) and model naming (MLP).</div>
+        <div class="fix">Promoted single runs to a <strong>multi-seed sweep</strong> → mean ± std.</div>
+      </div>
+    </div>
+    <p class="small muted">Every changed line traces to a specific finding — no opportunistic refactoring.</p>
+  </section>
+
+  <!-- 7. Reproducibility / Lambda -->
+  <section>
+    <h2>Reproducible results: multi-seed sweep</h2>
+    <ul>
+      <li>The original 2D CNN took <strong>~8 h on CPU</strong> / ~90 min on local GPU (MPS) — convolutions over ~22k windows dominate.</li>
+      <li>Provisioned a <strong>Lambda Cloud A10 GPU</strong> and ran <strong>5 seeds × 4 models = 20 trainings</strong>.</li>
+      <li>Report <strong>mean ± std</strong> instead of a single lucky run — directly addresses the reproducibility gap.</li>
+      <li>Guest agent installed for live GPU/VRAM metrics; instance terminated once results were pulled.</li>
+    </ul>
+    <p class="small muted">The point: rigorous numbers (mean ± std), not heroic single runs.</p>
+  </section>
+
+  <!-- 8. Results table  (FILLED FROM SWEEP) -->
+  <section>
+    <h2>Results — avg <code>r</code> (mean ± std, 5 seeds)</h2>
+    <!-- RESULTS_TABLE -->
+    <table>
+<thead><tr><th>Model</th><th>X pos</th><th>Y pos</th><th>X vel</th><th>Y vel</th><th>Average</th></tr></thead>
+<tbody>
+<tr><td><strong>MLP</strong></td><td>0.896 <span class='muted small'>± 0.008</span></td><td>0.807 <span class='muted small'>± 0.017</span></td><td>0.924 <span class='muted small'>± 0.002</span></td><td>0.904 <span class='muted small'>± 0.002</span></td><td>0.883 <span class='muted small'>± 0.006</span></td></tr>
+<tr><td><strong>2D CNN</strong></td><td>0.743 <span class='muted small'>± 0.118</span></td><td>0.670 <span class='muted small'>± 0.071</span></td><td>0.970 <span class='muted small'>± 0.004</span></td><td>0.962 <span class='muted small'>± 0.005</span></td><td>0.836 <span class='muted small'>± 0.047</span></td></tr>
+<tr class='best'><td><strong>LSTM</strong></td><td>0.989 <span class='muted small'>± 0.000</span></td><td>0.984 <span class='muted small'>± 0.000</span></td><td>0.987 <span class='muted small'>± 0.001</span></td><td>0.984 <span class='muted small'>± 0.000</span></td><td>0.986 <span class='muted small'>± 0.000</span></td></tr>
+<tr><td><strong>Transformer</strong></td><td>0.983 <span class='muted small'>± 0.001</span></td><td>0.976 <span class='muted small'>± 0.001</span></td><td>0.984 <span class='muted small'>± 0.001</span></td><td>0.983 <span class='muted small'>± 0.001</span></td><td>0.982 <span class='muted small'>± 0.001</span></td></tr>
+</tbody></table>
+    <!-- /RESULTS_TABLE -->
+    <p class="small"><strong>Headline:</strong> fixing the missing positional encoding took the Transformer from
+      <code>0.74 → 0.982</code> (+0.24) — the single biggest result change. Both sequence models now near-perfect;
+      MLP a strong cheap baseline; 2D CNN the most seed-sensitive (±0.047).</p>
+    <p class="small muted">Held-out test set. Higher is better; 1.0 = perfect tracking.</p>
+  </section>
+
+  <!-- 9. Decode plots -->
+  <section>
+    <h2>Decoded trajectories</h2>
+    <div class="cols center">
+      <div>
+        <img class="plot" src="../results/lstm_decode.png" alt="LSTM decode">
+        <p class="small muted">LSTM — blue = actual, red = predicted</p>
+      </div>
+      <div>
+        <img class="plot" src="../results/spatio_temporal_cnn_decode.png" alt="2D CNN decode">
+        <p class="small muted">2D CNN — strong on velocity, weaker on position</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. Live demo -->
+  <section class="center">
+    <h2>Live decoding demo</h2>
+    <p>Interactive replay of <strong>real held-out predictions</strong> on real spike data —<br>switch architectures, watch each decode the hand trajectory.</p>
+    <p><a href="../web-demo/index.html">→ open web-demo/index.html</a></p>
+    <p class="small muted">Spike traces · 95-channel heatmap · decoded position, all from exported model outputs.</p>
+  </section>
+
+  <!-- 11. Honest discussion -->
+  <section>
+    <h2>Reading the numbers honestly</h2>
+    <ul>
+      <li>The LSTM's very high <code>r</code> is partly <strong>genuine</strong> and partly a property of the data:</li>
+      <ul class="small">
+        <li>Position targets are <strong>slowly varying / highly autocorrelated</strong> — easy to track once velocity is decoded.</li>
+        <li>Stride-1 windows make adjacent samples near-duplicates, inflating within-split correlation.</li>
+      </ul>
+      <li>I verified the train/val/test split has <strong>no target leakage</strong> across the temporal boundary.</li>
+      <li>Next steps I'd take: trial-structured CV, report R² and RMSE alongside <code>r</code>, and a velocity-only baseline.</li>
+    </ul>
+    <p class="small muted">Knowing <em>why</em> a metric looks good is as important as the metric.</p>
+  </section>
+
+  <!-- 12. Takeaways -->
+  <section>
+    <h2>Takeaways</h2>
+    <ul>
+      <li><strong>Temporal context wins:</strong> sequence models (LSTM) decode best; a single bin (MLP) is a surprisingly strong, cheap baseline.</li>
+      <li><strong>Positional encoding matters:</strong> it's what makes the Transformer able to use time at all.</li>
+      <li><strong>Engineering rigor first:</strong> audit, seed, reproduce, and don't ship fabricated demos.</li>
+      <li><strong>Scale when it pays:</strong> a GPU was justified for the sweep, not for a single tiny run.</li>
+    </ul>
+    <p class="center small muted">Thank you — questions welcome.</p>
+  </section>
+
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/highlight.js"></script>
+<script>
+  Reveal.initialize({ hash: true, slideNumber: 'c/t', transition: 'slide', plugins: [ RevealHighlight ] });
+</script>
+</body>
+</html>

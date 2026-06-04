@@ -1,11 +1,13 @@
 """
-Train CNNs for Neural Decoding — Two Experiments
-Experiment 1: Single-bin CNN with fixed hyperparams (dropout 0.3 instead of 0.8)
+Train neural decoders — Two Experiments
+Experiment 1: Single-bin MLP with fixed hyperparams (dropout 0.3 instead of 0.8)
 Experiment 2: 2D CNN with 32-step temporal context (spatio-temporal)
 """
 
 import argparse
 import json
+import os
+import random
 import numpy as np
 import scipy.io
 import torch
@@ -16,10 +18,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
+SEED = 42
+
+
+def set_seed(seed=SEED):
+    """Seed Python, NumPy and Torch RNGs for reproducible results."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 # ── Models ──────────────────────────────────────────────────────────────────
 
-class SingleBinCNN(nn.Module):
-    """Original-style architecture: single time bin, fixed dropout."""
+class SingleBinMLP(nn.Module):
+    """Fully-connected decoder over a single time bin (no convolution)."""
     def __init__(self, n_channels=95, n_outputs=4):
         super().__init__()
         self.net = nn.Sequential(
@@ -134,7 +148,15 @@ def pearson_corr(pred, actual):
 
 def train_model(model, train_loader, val_loader, prep_fn, epochs=100, lr=1e-3, patience=15, device='cpu'):
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    # Apply weight decay only to >=2D weights, not to BatchNorm/bias params.
+    decay, no_decay = [], []
+    for p in model.parameters():
+        if p.requires_grad:
+            (decay if p.ndim >= 2 else no_decay).append(p)
+    optimizer = torch.optim.Adam([
+        {'params': decay, 'weight_decay': 1e-4},
+        {'params': no_decay, 'weight_decay': 0.0},
+    ], lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5)
     criterion = nn.MSELoss()
 
@@ -220,6 +242,77 @@ def plot_decode(pred, actual, corrs, title, filename, n_points=500):
     print(f"  Saved plot: {filename}")
 
 
+# ── Demo export ─────────────────────────────────────────────────────────────
+# The web demo (web-demo/) renders REAL decoded trajectories on REAL neural
+# data. We export the first N_DEMO test-set time points once (base), then add
+# each model's predictions as training finishes.
+
+DEMO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web-demo', 'results.json')
+N_DEMO = 500
+
+
+def _load_demo():
+    if os.path.exists(DEMO_PATH):
+        with open(DEMO_PATH) as f:
+            return json.load(f)
+    return {}
+
+
+def _save_demo(data):
+    with open(DEMO_PATH, 'w') as f:
+        json.dump(data, f)
+    # Also emit a JS wrapper so the demo works when opened directly (file://),
+    # where fetch() of a local JSON is blocked by CORS.
+    with open(DEMO_PATH[:-5] + '.js', 'w') as f:
+        f.write('window.DEMO_RESULTS = ')
+        json.dump(data, f)
+        f.write(';\n')
+
+
+def save_demo_base(neural_test, actual_test):
+    """Write the shared timeline: real spike-count neural data + actual kinematics.
+
+    neural_test: (T_test, 95) z-scored spike counts (one row per time bin).
+    actual_test: (T_test, 4) kinematics aligned to the same time bins.
+    """
+    data = _load_demo()
+    n = min(N_DEMO, len(neural_test))
+    data['base'] = {
+        'n_channels': int(neural_test.shape[1]),
+        'n_points': int(n),
+        # channels × time for the heatmap
+        'neural': np.asarray(neural_test[:n]).T.round(3).tolist(),
+        'actual': {
+            'x_pos': actual_test[:n, 0].round(3).tolist(),
+            'y_pos': actual_test[:n, 1].round(3).tolist(),
+        },
+    }
+    data.setdefault('models', {})
+    _save_demo(data)
+
+
+def save_demo_model(key, name, pred, corrs):
+    """Add one model's predicted positions + correlations to the demo data."""
+    data = _load_demo()
+    data.setdefault('models', {})
+    n = min(N_DEMO, len(pred))
+    data['models'][key] = {
+        'name': name,
+        'pred': {
+            'x_pos': pred[:n, 0].round(3).tolist(),
+            'y_pos': pred[:n, 1].round(3).tolist(),
+        },
+        'corr': {
+            'x_pos': round(float(corrs[0]), 3),
+            'y_pos': round(float(corrs[1]), 3),
+            'x_vel': round(float(corrs[2]), 3),
+            'y_vel': round(float(corrs[3]), 3),
+            'average': round(float(np.mean(corrs)), 3),
+        },
+    }
+    _save_demo(data)
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def main():
@@ -232,35 +325,40 @@ def main():
 
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     print(f"Using device: {device}")
+    set_seed()
 
     print("\nLoading data...")
     single_bin, windowed = load_data(args.data_path)
 
+    # Shared demo timeline: real spike-count neural data + actual kinematics.
+    save_demo_base(single_bin['test'][0], single_bin['test'][1])
+
     results = {}
 
-    # ── Experiment 1: Single-bin CNN ────────────────────────────────────────
+    # ── Experiment 1: Single-bin MLP ────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("EXPERIMENT 1: Single-bin CNN (fixed dropout 0.3)")
+    print("EXPERIMENT 1: Single-bin MLP (fixed dropout 0.3)")
     print("=" * 60)
 
     sb_train = make_loader(*single_bin['train'], args.batch_size, shuffle=True)
     sb_val = make_loader(*single_bin['val'], args.batch_size)
     sb_test = make_loader(*single_bin['test'], args.batch_size)
 
-    model1 = SingleBinCNN()
+    model1 = SingleBinMLP()
     prep_single = lambda y: y  # no reshape needed
     model1 = train_model(model1, sb_train, sb_val, prep_single, args.epochs, args.lr, device=device)
     corrs1, pred1, actual1 = evaluate(model1, sb_test, prep_single, device)
 
     labels = ['X pos', 'Y pos', 'X vel', 'Y vel']
-    print("\n  Single-bin CNN results:")
+    print("\n  Single-bin MLP results:")
     for l, c in zip(labels, corrs1):
         print(f"    {l}: {c:.3f}")
     avg1 = np.mean(corrs1)
     print(f"    Average: {avg1:.3f}")
 
-    plot_decode(pred1, actual1, corrs1, 'Single-bin CNN (Dropout 0.3)', 'single_bin_cnn_decode.png')
+    plot_decode(pred1, actual1, corrs1, 'Single-bin MLP (Dropout 0.3)', 'results/single_bin_cnn_decode.png')
     results['single_bin'] = {'corrs': corrs1, 'avg': avg1}
+    save_demo_model('mlp', 'MLP', pred1, corrs1)
 
     # ── Experiment 2: 2D CNN ────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -282,16 +380,16 @@ def main():
     avg2 = np.mean(corrs2)
     print(f"    Average: {avg2:.3f}")
 
-    plot_decode(pred2, actual2, corrs2, '2D Spatio-temporal CNN', 'spatio_temporal_cnn_decode.png')
+    plot_decode(pred2, actual2, corrs2, '2D Spatio-temporal CNN', 'results/spatio_temporal_cnn_decode.png')
     results['spatio_temporal'] = {'corrs': corrs2, 'avg': avg2}
+    save_demo_model('cnn2d', '2D CNN', pred2, corrs2)
 
     # ── Summary ─────────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"  Single-bin CNN avg correlation:     {avg1:.3f}")
+    print(f"  Single-bin MLP avg correlation:     {avg1:.3f}")
     print(f"  2D Spatio-temporal CNN avg corr:    {avg2:.3f}")
-    print(f"  Original CNN (demo, dropout 0.8):   0.100")
 
     # Save best results for demo integration
     best_name = 'spatio_temporal' if avg2 > avg1 else 'single_bin'

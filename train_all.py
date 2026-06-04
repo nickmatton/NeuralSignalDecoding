@@ -6,12 +6,30 @@ Skips MLP and 2D CNN (already have plots from train_cnn.py).
 """
 
 import json
+import math
 import numpy as np
 import torch
 import torch.nn as nn
 from train_cnn import (
     load_data, make_loader, train_model, evaluate, plot_decode,
+    set_seed, save_demo_model,
 )
+
+
+class PositionalEncoding(nn.Module):
+    """Standard fixed sinusoidal positional encoding (batch_first)."""
+    def __init__(self, d_model, max_len=512):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(max_len).unsqueeze(1).float()
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe.unsqueeze(0))  # [1, max_len, d_model]
+
+    def forward(self, x):
+        # x: [batch, seq_len, d_model]
+        return x + self.pe[:, :x.size(1)]
 
 
 class LSTMDecoder(nn.Module):
@@ -30,10 +48,11 @@ class LSTMDecoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, n_channels=95, d_model=130, nhead=5, n_outputs=4):
+    def __init__(self, n_channels=95, d_model=130, nhead=10, n_outputs=4):
         super().__init__()
         self.bn = nn.BatchNorm1d(n_channels)
         self.proj = nn.Linear(n_channels, d_model)
+        self.pos_encoder = PositionalEncoding(d_model)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=nhead, dim_feedforward=256,
             dropout=0.3, batch_first=True
@@ -46,6 +65,7 @@ class TransformerDecoder(nn.Module):
         b, t, c = x.shape
         x = self.bn(x.transpose(1, 2)).transpose(1, 2)
         x = self.proj(x)
+        x = self.pos_encoder(x)  # inject temporal order before self-attention
         x = self.encoder(x)
         x = x.mean(dim=1)
         return self.fc(x)
@@ -54,6 +74,7 @@ class TransformerDecoder(nn.Module):
 def main():
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     print(f"Using device: {device}")
+    set_seed()
 
     print("\nLoading data...")
     _, windowed = load_data('contdata95.mat')
@@ -74,8 +95,9 @@ def main():
     corrs, pred, actual = evaluate(model_lstm, w_test, prep_seq, device)
     avg = np.mean(corrs)
     print(f"\n  LSTM: avg={avg:.3f} | X pos={corrs[0]:.3f}, Y pos={corrs[1]:.3f}, X vel={corrs[2]:.3f}, Y vel={corrs[3]:.3f}")
-    plot_decode(pred, actual, corrs, f"LSTM (avg r = {avg:.3f})", "../../demos/lstm_decode.png")
+    plot_decode(pred, actual, corrs, f"LSTM (avg r = {avg:.3f})", "results/lstm_decode.png")
     results['lstm'] = {'corrs': corrs, 'avg': avg}
+    save_demo_model('lstm', 'LSTM', pred, corrs)
 
     # ── Train Transformer ───────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -86,8 +108,9 @@ def main():
     corrs, pred, actual = evaluate(model_trans, w_test, prep_seq, device)
     avg = np.mean(corrs)
     print(f"\n  Transformer: avg={avg:.3f} | X pos={corrs[0]:.3f}, Y pos={corrs[1]:.3f}, X vel={corrs[2]:.3f}, Y vel={corrs[3]:.3f}")
-    plot_decode(pred, actual, corrs, f"Transformer (avg r = {avg:.3f})", "../../demos/transformer_decode.png")
+    plot_decode(pred, actual, corrs, f"Transformer (avg r = {avg:.3f})", "results/transformer_decode.png")
     results['transformer'] = {'corrs': corrs, 'avg': avg}
+    save_demo_model('transformer', 'Transformer', pred, corrs)
 
     # ── Summary ─────────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
