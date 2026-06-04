@@ -37,17 +37,19 @@
         <!-- Approach -->
         <section class="viz-section">
             <div class="section-header">
-                <h2 class="section-title">How the models were trained</h2>
+                <h2 class="section-title">The models &amp; how they were trained</h2>
                 <p class="intro-description">
-                    Each architecture maps neural activity to the four kinematic targets. We split the 31,413 time bins
-                    70/15/15 <strong>along time</strong> — never shuffling, so every model is tested on a future segment it
-                    never saw during training — and z-scored the spike counts using <strong>training statistics only</strong>.
-                    Models were trained with Adam and an MSE loss, with early stopping on a validation set; the LSTM and
-                    Transformer read a 32-bin (1.6&nbsp;s) sliding window of context, while the MLP decodes from a single
-                    50&nbsp;ms bin. Rather than trust a single run, we trained every model across <strong>5 random seeds</strong>
-                    on a GPU and report the mean&nbsp;±&nbsp;standard deviation. The biggest gain came from a fix, not a
-                    hyperparameter: adding sinusoidal <strong>positional encoding</strong> let the Transformer use temporal
-                    order, lifting it from r&nbsp;=&nbsp;0.74 to 0.982 — essentially matching the best model, the LSTM (0.986).
+                    We compared four architectures that differ in how they use time. The <strong>MLP</strong> is a five-layer
+                    fully-connected network that decodes from a single 50&nbsp;ms bin of 95 spike counts — no temporal context.
+                    The <strong>2D CNN</strong> treats a 32-bin window as a (time&nbsp;×&nbsp;channel) image and stacks four
+                    convolutional blocks with global pooling. The <strong>LSTM</strong> runs recurrently over the same
+                    32-bin (1.6&nbsp;s) window and predicts from its final hidden state. The <strong>Transformer</strong>
+                    projects each bin, adds sinusoidal positional encoding so self-attention can use temporal order, applies a
+                    two-layer encoder, and mean-pools across the window. All four were trained the same way: a temporal
+                    70/15/15 split (<strong>never shuffled</strong>, to avoid leakage), spike counts z-scored with
+                    <strong>training statistics only</strong>, and Adam with MSE loss and early stopping. To report
+                    trustworthy numbers, we trained every model across <strong>5 random seeds</strong> on a GPU and report the
+                    mean&nbsp;±&nbsp;standard deviation.
                 </p>
             </div>
         </section>
@@ -264,14 +266,14 @@
             <div class="insight-card">
                 <h3 class="insight-title">Key Insight</h3>
                 <p class="insight-text">
-                    The biggest lever was a bug fix, not a hyperparameter. The Transformer originally scored
-                    0.74 — because it had <em>no positional encoding</em>, self-attention saw the 32-step window as an
-                    unordered set and couldn't use time. Adding sinusoidal positional encoding lifted it to
-                    <strong>0.982</strong>, essentially matching the LSTM (<strong>0.986</strong>). Given 1.6&nbsp;s of temporal
-                    context, both sequence models decode kinematics almost perfectly. The single-bin MLP is a strong,
-                    cheap baseline (0.88) from one 50&nbsp;ms bin, while the 2D CNN (0.84&nbsp;±&nbsp;0.05) is the most
-                    seed-sensitive — strong on velocity, weaker on absolute position. Reported numbers are
-                    mean&nbsp;±&nbsp;std over 5 seeds (Lambda&nbsp;GPU sweep).
+                    Temporal context is what matters most. Given a 1.6&nbsp;s window, both sequence models decode
+                    kinematics almost perfectly — the <strong>LSTM</strong> leads at <strong>0.986</strong> and the
+                    <strong>Transformer</strong> reaches <strong>0.982</strong>. The Transformer depends on its sinusoidal
+                    positional encoding to do so: without it, self-attention sees the 32-step window as an unordered set and
+                    only reaches 0.74. The single-bin <strong>MLP</strong> is a strong, cheap baseline (0.88) from one
+                    50&nbsp;ms bin, while the <strong>2D CNN</strong> (0.84&nbsp;±&nbsp;0.05) is the most seed-sensitive —
+                    strong on velocity, weaker on absolute position. Reported numbers are mean&nbsp;±&nbsp;std over 5 seeds
+                    (Lambda&nbsp;GPU sweep).
                 </p>
             </div>
         </section>
