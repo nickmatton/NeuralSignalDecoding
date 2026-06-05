@@ -20,7 +20,8 @@ import torch
 
 from train_cnn import (
     load_data, make_loader, train_model, evaluate, plot_decode,
-    set_seed, save_demo_base, save_demo_model, SingleBinMLP, SpatioTemporalCNN,
+    set_seed, save_demo_base, save_demo_model, save_demo_stats,
+    SingleBinMLP, SpatioTemporalCNN,
 )
 from train_all import LSTMDecoder, TransformerDecoder
 
@@ -105,6 +106,10 @@ def main():
 
     with open('sweep_results.json', 'w') as f:
         json.dump(sweep, f, indent=2)
+
+    # Attach mean ± std to the demo data so its cards/chart report the sweep
+    # statistics (the animated trajectory stays the representative seed).
+    save_demo_stats(sweep, rep_seed=rep_seed)
 
     # ── Representative-seed JSONs (backwards compatible) ────────────────────
     def rep(key):

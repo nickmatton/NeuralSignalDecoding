@@ -313,6 +313,24 @@ def save_demo_model(key, name, pred, corrs):
     _save_demo(data)
 
 
+def save_demo_stats(sweep, rep_seed=0):
+    """Attach multi-seed mean ± std to each demo model so the cards/chart report
+    the sweep statistics (the trajectory itself stays a representative seed).
+
+    sweep: the dict written to sweep_results.json — {key: {metrics: {metric:
+    {mean, std, ...}}}}.
+    """
+    data = _load_demo()
+    data['rep_seed'] = rep_seed
+    for key, s in sweep.items():
+        if key in data.get('models', {}):
+            data['models'][key]['stats'] = {
+                m: {'mean': s['metrics'][m]['mean'], 'std': s['metrics'][m]['std']}
+                for m in ['x_pos', 'y_pos', 'x_vel', 'y_vel', 'average']
+            }
+    _save_demo(data)
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def main():

@@ -51,6 +51,7 @@
         models[key] = {
             name: m.name,
             corr: m.corr,
+            stats: m.stats,   // 5-seed mean ± std (cards, bar chart, live readout)
             xPred: Float32Array.from(m.pred.x_pos),
             yPred: Float32Array.from(m.pred.y_pos),
         };
@@ -243,8 +244,10 @@
 
     // --- Update correlation display ---
     function updateCorrelation() {
-        const model = models[currentModel];
-        document.getElementById('live-corr-value').textContent = model.corr.average.toFixed(3);
+        const m = models[currentModel];
+        // Report the 5-seed mean (matches the cards/chart), not the single run.
+        const avg = m.stats ? m.stats.average.mean : m.corr.average;
+        document.getElementById('live-corr-value').textContent = avg.toFixed(3);
     }
 
     // --- Animation loop (time-based, so playback speed is independent of the
@@ -334,10 +337,25 @@
             const totalW = barW * barModels.length + barGap * (barModels.length - 1);
             const startX = groupX - totalW / 2;
             barModels.forEach((key, j) => {
-                const val = Math.max(0, models[key].corr[metric]);
+                const stat = models[key].stats ? models[key].stats[metric] : { mean: models[key].corr[metric], std: 0 };
+                const val = Math.max(0, stat.mean);
                 const barH = val * chartH;
+                const bx = startX + j * (barW + barGap);
                 ctx.fillStyle = BAR_COLORS[key];
-                ctx.fillRect(startX + j * (barW + barGap), zeroY - barH, barW, barH);
+                ctx.fillRect(bx, zeroY - barH, barW, barH);
+                // ± std error bar (visible mainly for the seed-sensitive 2D CNN)
+                if (stat.std > 0.002) {
+                    const cx = bx + barW / 2;
+                    const top = zeroY - (val + stat.std) * chartH;
+                    const bot = zeroY - Math.max(0, val - stat.std) * chartH;
+                    ctx.strokeStyle = '#1A1A1A';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, top); ctx.lineTo(cx, bot);
+                    ctx.moveTo(cx - 2.5, top); ctx.lineTo(cx + 2.5, top);
+                    ctx.moveTo(cx - 2.5, bot); ctx.lineTo(cx + 2.5, bot);
+                    ctx.stroke();
+                }
             });
             ctx.font = '10px "JetBrains Mono"';
             ctx.fillStyle = '#6B6B6B';
@@ -363,11 +381,16 @@
         document.querySelectorAll('.result-card[data-model]').forEach(card => {
             const m = models[card.dataset.model];
             if (!m) return;
-            card.querySelector('.result-corr').textContent = m.corr.average.toFixed(3);
+            const st = m.stats;
+            const pick = (metric) => st ? st[metric].mean : m.corr[metric];
+            card.querySelector('.result-corr').textContent = pick('average').toFixed(3);
+            // Show the 5-seed std on the label so the headline number reads as mean ± std.
+            const label = card.querySelector('.result-label');
+            if (label && st) label.textContent = `± ${st.average.std.toFixed(3)} avg r (5 seeds)`;
             const spans = card.querySelectorAll('.result-detail span');
-            const vals = [m.corr.x_pos, m.corr.y_pos, m.corr.x_vel, m.corr.y_vel];
+            const keys = ['x_pos', 'y_pos', 'x_vel', 'y_vel'];
             const lbls = ['X pos', 'Y pos', 'X vel', 'Y vel'];
-            spans.forEach((s, i) => { if (i < 4) s.textContent = `${lbls[i]}: ${vals[i].toFixed(3)}`; });
+            spans.forEach((s, i) => { if (i < 4) s.textContent = `${lbls[i]}: ${pick(keys[i]).toFixed(3)}`; });
         });
     }
 

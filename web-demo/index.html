@@ -39,8 +39,9 @@
             <div class="section-header">
                 <h2 class="section-title">The models &amp; how they were trained</h2>
                 <p class="intro-description">
-                    We compared four architectures that differ in how they use time. The <strong>MLP</strong> is a five-layer
-                    fully-connected network that decodes from a single 50&nbsp;ms bin of 95 spike counts — no temporal context.
+                    We compared four architectures that differ in how they use time. The <strong>MLP</strong> is a
+                    fully-connected network (five hidden layers) that decodes from a single 50&nbsp;ms bin of 95 spike
+                    counts — no temporal context.
                     The <strong>2D CNN</strong> treats a 32-bin window as a (time&nbsp;×&nbsp;channel) image and stacks four
                     convolutional blocks with global pooling. The <strong>LSTM</strong> runs recurrently over the same
                     32-bin (1.6&nbsp;s) window and predicts from its final hidden state. The <strong>Transformer</strong>
@@ -58,7 +59,7 @@
         <section class="viz-section">
             <div class="section-header">
                 <h2 class="section-title">Live Decoding Replay</h2>
-                <p class="section-desc">Watch each model attempt to decode hand position from neural activity in real-time. Blue = actual trajectory, red = model prediction.</p>
+                <p class="section-desc">Watch each model decode hand position from neural activity in real-time, on one representative run from the held-out test set. Blue = actual trajectory, red = model prediction. (The headline metrics below are 5-seed means.)</p>
             </div>
 
             <div class="model-tabs">
@@ -111,7 +112,7 @@
         <section class="compare-section">
             <div class="section-header">
                 <h2 class="section-title">Architecture Comparison</h2>
-                <p class="section-desc">Pearson correlation between predicted and actual kinematics on the held-out test set.</p>
+                <p class="section-desc">Average Pearson correlation on the held-out test set — mean ± std over 5 random seeds. Error bars show the std.</p>
             </div>
 
             <div class="chart-container">
@@ -121,46 +122,46 @@
             <div class="results-grid">
                 <div class="result-card" data-model="mlp">
                     <div class="result-model">MLP</div>
-                    <div class="result-corr">0.876</div>
-                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-corr">0.883</div>
+                    <div class="result-label">± 0.006 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.878</span>
+                        <span>X pos: 0.896</span>
                         <span>Y pos: 0.807</span>
-                        <span>X vel: 0.917</span>
-                        <span>Y vel: 0.902</span>
+                        <span>X vel: 0.924</span>
+                        <span>Y vel: 0.904</span>
                     </div>
                 </div>
                 <div class="result-card result-card-best" data-model="lstm">
                     <div class="result-model">LSTM</div>
-                    <div class="result-corr">0.987</div>
-                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-corr">0.986</div>
+                    <div class="result-label">± 0.000 avg r (5 seeds)</div>
                     <div class="result-detail">
                         <span>X pos: 0.989</span>
-                        <span>Y pos: 0.986</span>
+                        <span>Y pos: 0.984</span>
                         <span>X vel: 0.987</span>
-                        <span>Y vel: 0.985</span>
+                        <span>Y vel: 0.984</span>
                     </div>
                 </div>
                 <div class="result-card" data-model="cnn2d">
                     <div class="result-model">2D CNN</div>
-                    <div class="result-corr">0.788</div>
-                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-corr">0.836</div>
+                    <div class="result-label">± 0.047 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.608</span>
-                        <span>Y pos: 0.615</span>
-                        <span>X vel: 0.969</span>
-                        <span>Y vel: 0.960</span>
+                        <span>X pos: 0.743</span>
+                        <span>Y pos: 0.670</span>
+                        <span>X vel: 0.970</span>
+                        <span>Y vel: 0.962</span>
                     </div>
                 </div>
                 <div class="result-card" data-model="transformer">
                     <div class="result-model">Transformer</div>
-                    <div class="result-corr">0.740</div>
-                    <div class="result-label">Avg Correlation</div>
+                    <div class="result-corr">0.982</div>
+                    <div class="result-label">± 0.001 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.683</span>
-                        <span>Y pos: 0.692</span>
-                        <span>X vel: 0.787</span>
-                        <span>Y vel: 0.798</span>
+                        <span>X pos: 0.983</span>
+                        <span>Y pos: 0.976</span>
+                        <span>X vel: 0.984</span>
+                        <span>Y vel: 0.983</span>
                     </div>
                 </div>
             </div>
