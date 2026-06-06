@@ -91,3 +91,10 @@ python3 -m pip install --no-deps nlb_tools
     (fixed in `nlb_data.py`). RTT (continuous) was unaffected.
   - Loaders verified on remote: RTT 24,278/8,078 (98 ch, finger_vel); **MC_Maze 255,703/84,782
     (137 ch, hand_vel)**.
+  - **RTT results (5 seeds, vel R²):** Transformer 0.634±0.006, LSTM 0.602±0.007,
+    2D CNN 0.516±0.033, MLP 0.090±0.004.
+  - **MC_Maze cost control:** 255k stride-1 train windows made the 2D CNN ~4–6 h / ~$8.
+    Added `--max_train` to subsample train windows (val kept full); ran Maze with
+    `--max_train 80000` → ~1–1.5 h. (Also fixed a chained-launch bug where the wait-guard's
+    `pgrep -f "dataset mc_rtt"` matched the launcher's own heredoc args → deadlock; launch
+    sweeps directly with `setsid`, don't chain via pgrep on the arg string.)

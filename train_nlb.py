@@ -71,6 +71,9 @@ def main():
     ap.add_argument('--seeds', type=int, nargs='+', default=[0, 1, 2, 3, 4])
     ap.add_argument('--models', nargs='+', default=None,
                     help='subset of model keys to run (default: all)')
+    ap.add_argument('--max_train', type=int, default=None,
+                    help='cap # train windows (uniform subsample; val kept full). '
+                         'Useful for the large MC_Maze train set (stride-1 windows are redundant).')
     ap.add_argument('--out', default='nlb_rtt_results.json')
     args = ap.parse_args()
 
@@ -83,6 +86,15 @@ def main():
     print(f"  {meta['n_channels']} channels, {meta['n_train']} train / {meta['n_val']} val samples, target {meta['vel_field']}")
     data = {'single': single_bin, 'window': windowed}
     C, O = meta['n_channels'], meta['n_outputs']
+
+    # Cap the (redundant, stride-1) train windows for speed; val stays full.
+    if args.max_train and meta['n_train'] > args.max_train:
+        rng = np.random.default_rng(123)
+        keep = np.sort(rng.choice(meta['n_train'], args.max_train, replace=False))
+        for dk in ('single', 'window'):
+            X, y = data[dk]['train']
+            data[dk]['train'] = (X[keep], y[keep])
+        print(f"  capped train windows: {meta['n_train']} -> {args.max_train}")
 
     acc = {key: [] for key, *_ in run_models}
     for seed in args.seeds:
