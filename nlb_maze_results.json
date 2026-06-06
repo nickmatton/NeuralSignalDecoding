@@ -1,0 +1,45 @@
+{
+  "dataset": "mc_maze",
+  "meta": {
+    "n_channels": 137,
+    "n_outputs": 2,
+    "bin_ms": 20,
+    "seq_len": 12,
+    "vel_field": "hand_vel",
+    "n_train": 255703,
+    "n_val": 84782
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "models": {
+    "lstm": {
+      "name": "LSTM",
+      "vel_r2_mean": 0.855,
+      "vel_r2_std": 0.003,
+      "values": [
+        0.855,
+        0.853,
+        0.86,
+        0.855,
+        0.852
+      ]
+    },
+    "transformer": {
+      "name": "Transformer",
+      "vel_r2_mean": 0.833,
+      "vel_r2_std": 0.005,
+      "values": [
+        0.833,
+        0.835,
+        0.824,
+        0.839,
+        0.832
+      ]
+    }
+  }
+}

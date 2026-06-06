@@ -98,3 +98,24 @@ python3 -m pip install --no-deps nlb_tools
     `--max_train 80000` → ~1–1.5 h. (Also fixed a chained-launch bug where the wait-guard's
     `pgrep -f "dataset mc_rtt"` matched the launcher's own heredoc args → deadlock; launch
     sweeps directly with `setsid`, don't chain via pgrep on the arg string.)
+  - **2D CNN on MC_Maze hangs** (reproducible): freezes at ~epoch 50, GPU→0%, no traceback —
+    a cuDNN/conv deadlock on the A10 for the Maze conv shapes (fine on MC_RTT).
+  - **Scope decision:** focus the NLB comparison on the two sequence models — **LSTM +
+    Transformer** (drops the flaky 2D CNN and the weak single-bin MLP). RTT already has both;
+    MC_Maze run with `--models lstm transformer`.
+  - **`pkill` footgun:** `pkill -f train_nlb.py` from the launching SSH shell matches the
+    shell's *own* command line → self-kills before launch. Launch directly (no pkill); verify
+    real procs with `ps aux | grep '[t]rain_nlb.py'` (bracket avoids self-match).
+- [x] **Step 5 DONE** — pulled `nlb_rtt_results.json` + `nlb_maze_results.json`; instance
+  terminated, ssh key removed.
+
+## Final results — velocity R² (mean ± std, 5 seeds)
+
+| Model | MC_RTT | MC_Maze |
+|---|---|---|
+| **LSTM** | 0.602 ± 0.007 | **0.855 ± 0.003** |
+| **Transformer** | **0.634 ± 0.006** | 0.833 ± 0.005 |
+
+Both in/near the published ranges (RTT ~0.60–0.70; Maze ~0.88–0.91). Transformer edges LSTM
+on RTT; LSTM edges Transformer on Maze. (RTT also has MLP 0.090 / 2D CNN 0.516 from the
+earlier 4-model run; MC_Maze focused on the two sequence models per scope decision.)
