@@ -75,5 +75,19 @@ python3 -m pip install --no-deps nlb_tools
      and drop any window overlapping one (`nlb_data` gap handling).
   **Validation (MC_RTT, 1 seed, 40 ep):** LSTM **0.648**, Transformer **0.633** (both in
   the 0.60–0.70 target range), MLP 0.090 (single-bin/zero-lag baseline). Pipeline works.
-- [ ] **Step 5** — full multi-seed sweep (5 seeds × 4 models). 2D CNN is impractically
-  slow on MPS (~3 min/epoch) → run on **Lambda GPU** (see CLAUDE.md). Then MC_Maze.
+- [~] **Step 5** — full multi-seed sweep (5 seeds × 4 models), **Lambda A10** (2D CNN is
+  ~3 min/epoch on MPS; fast on CUDA). Running RTT then MC_Maze (chained), then pull + terminate.
+
+  **Remote setup gotchas (Lambda Stack, Ubuntu 22.04 / py3.10):**
+  - Guest agent installed first (CLAUDE.md rule) — active.
+  - `pip install dandi pynwb` pulls **numpy 2**, which breaks the Debian-compiled
+    `pandas`/`h5py` (ABI: "numpy.dtype size changed"). Fix: `pip install 'numpy<2' pandas h5py`
+    (pip builds in `~/.local` shadow the Debian ones). Then `pip install --no-deps nlb_tools`.
+  - `dandi` also needs a newer `jsonschema`: `pip install --upgrade jsonschema`.
+  - `dandi` is in `~/.local/bin` (not on non-interactive PATH) → `export PATH=$HOME/.local/bin:$PATH`.
+  - `dandi download -o <dir>` requires `<dir>` to already exist (`mkdir -p` first).
+  - **MC_Maze resample bug:** `nlb_tools.resample()` sets a cosmetic `index.freq` that pandas 2.x
+    rejects on MC_Maze's gappy index. The rebin already happened, so wrap in `try/except ValueError`
+    (fixed in `nlb_data.py`). RTT (continuous) was unaffected.
+  - Loaders verified on remote: RTT 24,278/8,078 (98 ch, finger_vel); **MC_Maze 255,703/84,782
+    (137 ch, hand_vel)**.

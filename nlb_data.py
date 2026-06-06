@@ -46,7 +46,13 @@ def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12):
     """
     vel_field = VEL_FIELD[dataset]
     ds = NWBDataset(nwb_path, split_heldout=True)
-    ds.resample(bin_ms)
+    # nlb_tools.resample() rebins the data, then sets a cosmetic index.freq which
+    # pandas 2.x rejects when the index has gaps (e.g. MC_Maze's inter-trial gaps).
+    # The rebinning has already happened by then, so the freq error is safe to skip.
+    try:
+        ds.resample(bin_ms)
+    except ValueError:
+        pass
     df = ds.data
 
     spikes = df['spikes'].to_numpy(np.float32)          # (T, C)
