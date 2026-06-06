@@ -146,7 +146,7 @@ def pearson_corr(pred, actual):
     return corrs
 
 
-def train_model(model, train_loader, val_loader, prep_fn, epochs=100, lr=1e-3, patience=15, device='cpu'):
+def train_model(model, train_loader, val_loader, prep_fn, epochs=100, lr=1e-3, patience=15, device='cpu', grad_clip=None):
     model.to(device)
     # Apply weight decay only to >=2D weights, not to BatchNorm/bias params.
     decay, no_decay = [], []
@@ -174,6 +174,8 @@ def train_model(model, train_loader, val_loader, prep_fn, epochs=100, lr=1e-3, p
             loss = criterion(pred, xb)
             optimizer.zero_grad()
             loss.backward()
+            if grad_clip is not None:
+                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             optimizer.step()
             train_loss += loss.item() * len(xb)
         train_loss /= len(train_loader.dataset)

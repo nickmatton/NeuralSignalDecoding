@@ -6,7 +6,12 @@
 __pycache__/
 *.pyc
 
+# NLB data downloads (NWB files from DANDI — large, fetched via dandi)
+nlb_data/
+
 # Training run logs
 train_cnn_run.log
 train_all_run.log
 sweep.log
+nlb_smoke.log
+nlb_fast.log

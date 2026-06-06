@@ -3,6 +3,14 @@
 Decode hand kinematics (X/Y position + velocity) from 95-channel motor-cortex
 spike counts (`contdata95.mat`). Models: MLP, 2D CNN, LSTM, Transformer.
 
+## Documentation rule
+
+When executing a multi-step experiment or setup, keep a concise step-by-step
+**runbook** in `docs/<name>.md` and update it *as you go* — one short, digestible
+entry per step (what was done, the command, the result/gotcha) so the whole chain
+can be followed and reproduced later. Active runbooks:
+- `docs/nlb-experiment.md` — extending the comparison to the Neural Latents Benchmark.
+
 - `train_cnn.py` — MLP + 2D CNN
 - `train_all.py` — LSTM + Transformer (imports shared helpers from `train_cnn.py`)
 - `sweep.py` — multi-seed sweep (mean ± std) + exports demo data and plots
