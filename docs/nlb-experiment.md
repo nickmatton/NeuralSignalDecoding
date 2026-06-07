@@ -73,6 +73,13 @@ python3 -m pip install --no-deps nlb_tools
      keeps contdata95 unchanged).
   2. **Recording-gap NaNs** — ~15 bins (0.05%) are NaN (gaps). Exclude them as samples
      and drop any window overlapping one (`nlb_data` gap handling).
+  3. **Early-stop holdout leakage** (fixed post-sweep) — `carve_estop` used a *random*
+     shuffle to split the train rows, but stride-1 windows overlap their neighbours by
+     `seq_len-1` bins, so the holdout was ~92% memorized from train (violates CLAUDE.md
+     "never shuffle across time"). Replaced with a **contiguous temporal block** (last 15%
+     of train, with a `seq_len-1`-row guard gap at the seam). Also added `drop_last=True`
+     on the train loader so a size-1 final batch can't crash `BatchNorm1d`. The results
+     table below was produced *before* this fix; numbers may shift slightly on re-run.
   **Validation (MC_RTT, 1 seed, 40 ep):** LSTM **0.648**, Transformer **0.633** (both in
   the 0.60–0.70 target range), MLP 0.090 (single-bin/zero-lag baseline). Pipeline works.
 - [~] **Step 5** — full multi-seed sweep (5 seeds × 4 models), **Lambda A10** (2D CNN is
@@ -111,11 +118,15 @@ python3 -m pip install --no-deps nlb_tools
 
 ## Final results — velocity R² (mean ± std, 5 seeds)
 
+Re-run after the early-stop **leak fix** (contiguous temporal holdout) + grad_clip:
+
 | Model | MC_RTT | MC_Maze |
 |---|---|---|
-| **LSTM** | 0.602 ± 0.007 | **0.855 ± 0.003** |
-| **Transformer** | **0.634 ± 0.006** | 0.833 ± 0.005 |
+| **LSTM** | **0.606 ± 0.017** | **0.856 ± 0.002** |
+| **Transformer** | 0.584 ± 0.038 | 0.825 ± 0.008 |
 
-Both in/near the published ranges (RTT ~0.60–0.70; Maze ~0.88–0.91). Transformer edges LSTM
-on RTT; LSTM edges Transformer on Maze. (RTT also has MLP 0.090 / 2D CNN 0.516 from the
-earlier 4-model run; MC_Maze focused on the two sequence models per scope decision.)
+Both in/near the published ranges (RTT ~0.60–0.70; Maze ~0.88–0.91). **LSTM leads on both.**
+The Transformer RTT dropped vs the pre-fix run (0.634 → 0.584) — that earlier number was
+inflated by the leaky random early-stop holdout, which is exactly why the rerun was needed.
+(Pre-fix numbers, for the record: RTT LSTM 0.602 / Transformer 0.634; Maze LSTM 0.855 /
+Transformer 0.833.)
