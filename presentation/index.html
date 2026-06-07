@@ -168,7 +168,7 @@
     <ul>
       <li><strong>Temporal 70 / 15 / 15 split</strong> — train = first 70% of time, then val, then test.
         <span class="muted small">Never shuffled: adjacent bins are correlated, so random splitting would leak the future into training.</span></li>
-      <li><strong>Z-score</strong> the spike counts using <strong>training statistics only</strong> (no peeking at val/test).</li>
+      <li><strong>Z-score</strong> both the spike counts <em>and</em> the kinematic targets using <strong>training statistics only</strong> — normalizing the targets balances the loss across position &amp; velocity (no peeking at val/test).</li>
       <li><strong>Context windows:</strong> sequence models see a <strong>32-bin (1.6&nbsp;s)</strong> sliding window; the MLP sees a single bin.</li>
     </ul>
     <p class="small muted">I verified the windowing introduces <strong>no target leakage</strong> across the split boundaries.</p>
@@ -296,10 +296,11 @@
     <div class="cols">
       <div>
         <ul class="small">
-          <li>Loss: <strong>MSE</strong> on the 4 targets</li>
+          <li>Loss: <strong>MSE</strong> on the 4 z-scored targets</li>
           <li>Optimizer: <strong>Adam</strong>, lr 1e-3</li>
           <li>Weight decay 1e-4 — on weights only (not BatchNorm/bias)</li>
           <li>LR schedule: ReduceLROnPlateau (×0.5, patience 5)</li>
+          <li>Grad clipping (norm 1.0) for LSTM / Transformer</li>
         </ul>
       </div>
       <div>
@@ -339,16 +340,17 @@
     <table>
       <thead><tr><th>Model</th><th>X pos</th><th>Y pos</th><th>X vel</th><th>Y vel</th><th>Average</th></tr></thead>
       <tbody>
-        <tr><td><strong>MLP</strong></td><td>0.896 <span class="muted xs">±0.008</span></td><td>0.807 <span class="muted xs">±0.017</span></td><td>0.924 <span class="muted xs">±0.002</span></td><td>0.904 <span class="muted xs">±0.002</span></td><td>0.883 <span class="muted xs">±0.006</span></td></tr>
-        <tr><td><strong>2D CNN</strong></td><td>0.743 <span class="muted xs">±0.118</span></td><td>0.670 <span class="muted xs">±0.071</span></td><td>0.970 <span class="muted xs">±0.004</span></td><td>0.962 <span class="muted xs">±0.005</span></td><td>0.836 <span class="muted xs">±0.047</span></td></tr>
-        <tr class="best"><td><strong>LSTM</strong></td><td>0.989 <span class="muted xs">±0.000</span></td><td>0.984 <span class="muted xs">±0.000</span></td><td>0.987 <span class="muted xs">±0.001</span></td><td>0.984 <span class="muted xs">±0.000</span></td><td>0.986 <span class="muted xs">±0.000</span></td></tr>
-        <tr><td><strong>Transformer</strong></td><td>0.983 <span class="muted xs">±0.001</span></td><td>0.976 <span class="muted xs">±0.001</span></td><td>0.984 <span class="muted xs">±0.001</span></td><td>0.983 <span class="muted xs">±0.001</span></td><td>0.982 <span class="muted xs">±0.001</span></td></tr>
+        <tr><td><strong>MLP</strong></td><td>0.955 <span class="muted xs">±0.000</span></td><td>0.926 <span class="muted xs">±0.002</span></td><td>0.923 <span class="muted xs">±0.002</span></td><td>0.907 <span class="muted xs">±0.003</span></td><td>0.928 <span class="muted xs">±0.001</span></td></tr>
+        <tr><td><strong>2D CNN</strong></td><td>0.963 <span class="muted xs">±0.004</span></td><td>0.954 <span class="muted xs">±0.005</span></td><td>0.962 <span class="muted xs">±0.005</span></td><td>0.959 <span class="muted xs">±0.005</span></td><td>0.960 <span class="muted xs">±0.004</span></td></tr>
+        <tr class="best"><td><strong>LSTM</strong></td><td>0.992 <span class="muted xs">±0.000</span></td><td>0.988 <span class="muted xs">±0.001</span></td><td>0.989 <span class="muted xs">±0.000</span></td><td>0.986 <span class="muted xs">±0.001</span></td><td>0.989 <span class="muted xs">±0.000</span></td></tr>
+        <tr><td><strong>Transformer</strong></td><td>0.990 <span class="muted xs">±0.000</span></td><td>0.985 <span class="muted xs">±0.001</span></td><td>0.984 <span class="muted xs">±0.002</span></td><td>0.982 <span class="muted xs">±0.002</span></td><td>0.985 <span class="muted xs">±0.001</span></td></tr>
       </tbody>
     </table>
-    <p class="small"><strong>LSTM 0.986</strong> ≳ <strong>Transformer 0.982</strong> ≫ <strong>MLP 0.883</strong> &gt; <strong>2D CNN 0.836</strong>. Held-out test set.</p>
+    <p class="small"><strong>LSTM 0.989</strong> ≳ <strong>Transformer 0.985</strong> &gt; <strong>2D CNN 0.960</strong> &gt; <strong>MLP 0.928</strong>. Held-out test set; all four within a narrow band once the loss is balanced.</p>
     <aside class="notes">
-      Walk the table. Sequence models near-perfect. MLP a strong baseline. 2D CNN highest variance (±0.047)
-      and the only model weak on position. Next three slides unpack the three insights.
+      Walk the table. With z-scored targets all four models clear 0.93 and the spread is small — sequence
+      models lead but only modestly. (Pre-normalization the CNN/MLP were much weaker at 0.84/0.88; that gap
+      was a loss-balance artifact, not architecture — next slides.) Variance is tiny across seeds.
     </aside>
   </section>
 
@@ -356,7 +358,7 @@
   <section class="center">
     <h2>Best model: LSTM</h2>
     <img class="plot" src="../results/lstm_decode.png" alt="LSTM decoded vs actual">
-    <p class="small muted">Predicted (red) tracks actual (blue) almost exactly across all four targets — r = 0.986.</p>
+    <p class="small muted">Predicted (red) tracks actual (blue) almost exactly across all four targets — r = 0.989.</p>
     <aside class="notes">
       Point out how tightly red follows blue on all four panels. This is the "near-perfect" regime; we'll
       scrutinize whether it's as impressive as it looks.
@@ -365,27 +367,29 @@
 
   <!-- 17. PLOT: 2D CNN -->
   <section class="center">
-    <h2>The informative failure: 2D CNN</h2>
+    <h2>2D CNN — fixed by balancing the loss</h2>
     <img class="plot" src="../results/spatio_temporal_cnn_decode.png" alt="2D CNN decoded vs actual">
-    <p class="small muted">Velocity panels (bottom) track well (~0.97); position panels (top) lag and drift (~0.6–0.74).</p>
+    <p class="small muted">With z-scored targets the CNN now tracks <em>position too</em> (~0.96), not just velocity — earlier it lagged on position (0.84 avg) only because velocity dominated the loss.</p>
     <aside class="notes">
-      Contrast top vs bottom panels. Velocity excellent, position poor — exactly what global average pooling
-      predicts, since it discards absolute position. A useful diagnostic, not just a low score.
+      Earlier this slide was "the informative failure" — the CNN was weak on position. That turned out to be
+      a loss-scaling artifact, not the architecture: position (±100) and velocity (±700) differ ~4× in scale,
+      so an unweighted MSE was dominated by velocity. Z-scoring the four targets fixed it (0.84 → 0.96).
     </aside>
   </section>
 
   <!-- 18. INSIGHT 1 -->
   <section>
-    <h2>Insight 1 — temporal context is the biggest lever</h2>
+    <h2>Insight 1 — loss balance rivaled architecture</h2>
     <ul>
-      <li>Both sequence models (~0.98) clearly beat the single-bin <strong>MLP (0.88)</strong> and the <strong>2D CNN (0.84)</strong>.</li>
-      <li>The gain is concentrated in <strong>position</strong>: MLP Y-pos 0.81, 2D CNN Y-pos 0.67 → LSTM/Transformer ≈ 0.98.</li>
-      <li>Intuition: position is the integral of velocity — recovering it well needs <strong>memory over time</strong>, which the MLP and pooling-CNN lack.</li>
+      <li>Position (±100) and velocity (±700) differ <strong>~4× in scale</strong>, so an unweighted MSE was dominated by velocity and starved position.</li>
+      <li><strong>Z-scoring the four targets</strong> (equal weight in the loss) lifted the weaker models sharply: <strong>2D CNN 0.84 → 0.96</strong>, <strong>MLP 0.88 → 0.93</strong> — the CNN's "position weakness" was a loss artifact, not its architecture.</li>
+      <li>The sequence models barely moved (already near ceiling).</li>
     </ul>
-    <p class="small muted lead">A single 50&nbsp;ms snapshot already decodes velocity well; <em>position</em> is where 1.6&nbsp;s of context pays off.</p>
+    <p class="small muted lead">A preprocessing choice — not a fancier model — closed most of the gap. Correlation is scale-invariant, so the <em>metric</em> is unchanged; the <em>trained model</em> isn't.</p>
     <aside class="notes">
-      The headline scientific takeaway. Velocity is roughly instantaneous in the firing; position requires
-      integrating history. That's why context helps position most.
+      The headline methodology takeaway, and an honest one: before this fix I'd have told a clean "sequence
+      models win big" story. The real lesson is that a basic loss-balancing step mattered as much as the
+      architecture for the non-recurrent models.
     </aside>
   </section>
 
@@ -396,8 +400,8 @@
       <div>
         <p>Self-attention is <strong>permutation-invariant</strong>: with no positional signal, the encoder sees the 32-bin window as an <em>unordered set</em>.</p>
         <ul class="small">
-          <li>No positional encoding → <span class="kpi" style="font-size:1em">r = 0.74</span></li>
-          <li>+ sinusoidal positional encoding → <span class="kpi" style="font-size:1em">r = 0.982</span></li>
+          <li>No positional encoding → <span class="kpi" style="font-size:1em">r ≈ 0.74</span></li>
+          <li>+ sinusoidal positional encoding → <span class="kpi" style="font-size:1em">r = 0.985</span></li>
         </ul>
       </div>
       <div class="small muted">
@@ -413,15 +417,17 @@
 
   <!-- 20. INSIGHT 3 -->
   <section>
-    <h2>Insight 3 — position vs velocity, and variance</h2>
+    <h2>Insight 3 — temporal context still helps, but modestly</h2>
     <ul>
-      <li>The <strong>2D CNN</strong> is excellent on velocity (~0.97) but weak on absolute position (~0.60–0.74) — <strong>global average pooling discards position</strong>; velocity is local and survives.</li>
-      <li>It's also the <strong>most seed-sensitive</strong> model: avg std <strong>±0.047</strong> (X-pos std ±0.118) vs ±0.000–0.006 for the others.</li>
+      <li>With the loss balanced, the ordering is <strong>LSTM 0.989 ≳ Transformer 0.985 &gt; 2D CNN 0.960 &gt; MLP 0.928</strong> — sequence models lead, but only by a few points.</li>
+      <li>A <strong>single 50&nbsp;ms bin</strong> (MLP, no context at all) already reaches <strong>0.93</strong> on this session.</li>
+      <li>Seed variance is tiny (±0.000–0.004), so the ranking is stable.</li>
     </ul>
-    <p class="small muted">Reporting mean ± std surfaces this instability — a single lucky 2D CNN run (0.90) would have badly misrepresented it.</p>
+    <p class="small muted lead">That small margin is itself a clue: this single autocorrelated session is "easy". The real test of whether context matters is a harder benchmark — next slide.</p>
     <aside class="notes">
-      Two points: the architectural reason for the position weakness, and a concrete payoff of the multi-seed
-      protocol — it's the only model where seed choice materially changes the story.
+      Honest reframing: temporal context helps but isn't the dramatic lever it looked like before the loss
+      fix. A single-bin MLP at 0.93 says the session is easy/autocorrelated — which sets up the NLB validation
+      where the spread between models, and the role of context, is clearer.
     </aside>
   </section>
 
@@ -449,13 +455,13 @@
     <table>
       <thead><tr><th>Model</th><th>MC_RTT <span class="muted xs">(Indy, random-target)</span></th><th>MC_Maze <span class="muted xs">(Jenkins, maze reach)</span></th></tr></thead>
       <tbody>
-        <tr><td><strong>LSTM</strong></td><td>0.602 <span class="muted xs">±0.007</span></td><td><strong>0.855</strong> <span class="muted xs">±0.003</span></td></tr>
-        <tr><td><strong>Transformer</strong></td><td><strong>0.634</strong> <span class="muted xs">±0.006</span></td><td>0.833 <span class="muted xs">±0.005</span></td></tr>
+        <tr class="best"><td><strong>LSTM</strong></td><td><strong>0.606</strong> <span class="muted xs">±0.017</span></td><td><strong>0.856</strong> <span class="muted xs">±0.002</span></td></tr>
+        <tr><td><strong>Transformer</strong></td><td>0.584 <span class="muted xs">±0.038</span></td><td>0.825 <span class="muted xs">±0.008</span></td></tr>
       </tbody>
     </table>
     <p class="small lead">Both land <strong>in/near published ranges</strong> (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) —
-      so the skill is real, not an autocorrelation artifact. Neither model dominates across datasets
-      (Transformer wins RTT, LSTM wins Maze).</p>
+      so the skill is real, not an autocorrelation artifact. Here the <strong>LSTM leads on both</strong>; the
+      gap from the easy single session (where all models looked ~equal) is now visible.</p>
     <p class="small muted">vel R², mean ± std over 5 seeds, run on a Lambda A10 GPU.</p>
     <aside class="notes">
       The credibility payoff. I moved from one easy, autocorrelated session (Pearson r ≈ 0.98) to a hard,
@@ -495,11 +501,11 @@
   <section>
     <h2>Takeaways</h2>
     <ul>
-      <li><strong>Temporal context is the biggest lever</strong> — sequence models (LSTM 0.986, Transformer 0.982) clearly beat single-bin / pooling decoders, mostly on position.</li>
-      <li><strong>Architecture details matter</strong> — positional encoding is what makes the Transformer competitive; global pooling is why the CNN loses position.</li>
-      <li><strong>A single 50&nbsp;ms bin is a strong baseline</strong> — the MLP reaches 0.88.</li>
-      <li><strong>It generalizes:</strong> the LSTM &amp; Transformer hit competitive <strong>velocity R²</strong> on the public <strong>Neural Latents Benchmark</strong> (2 monkeys) — not just one easy session.</li>
-      <li><strong>Rigor:</strong> fixed recipe, seeded, 5-seed mean ± std, leakage-checked, benchmark-validated, and honest about what the variance means.</li>
+      <li><strong>Preprocessing rivals architecture</strong> — z-scoring the targets to balance the loss lifted the 2D CNN 0.84→0.96 and the MLP 0.88→0.93; sequence models (LSTM 0.989, Transformer 0.985) lead only modestly.</li>
+      <li><strong>Architecture details matter</strong> — the Transformer needs positional encoding to use time at all.</li>
+      <li><strong>A single 50&nbsp;ms bin is a strong baseline</strong> — the MLP reaches 0.93 on this session.</li>
+      <li><strong>It generalizes:</strong> on the public <strong>Neural Latents Benchmark</strong> (2 monkeys, velocity R²) the LSTM leads — RTT 0.61, Maze 0.86 — not just one easy session.</li>
+      <li><strong>Rigor:</strong> fixed recipe, seeded, 5-seed mean ± std, leakage-checked (incl. a fixed early-stop leak), benchmark-validated.</li>
     </ul>
     <p class="center small muted">Thank you — questions welcome.</p>
     <aside class="notes">

@@ -122,46 +122,46 @@
             <div class="results-grid">
                 <div class="result-card" data-model="mlp">
                     <div class="result-model">MLP</div>
-                    <div class="result-corr">0.883</div>
-                    <div class="result-label">± 0.006 avg r (5 seeds)</div>
+                    <div class="result-corr">0.928</div>
+                    <div class="result-label">± 0.001 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.896</span>
-                        <span>Y pos: 0.807</span>
-                        <span>X vel: 0.924</span>
-                        <span>Y vel: 0.904</span>
+                        <span>X pos: 0.955</span>
+                        <span>Y pos: 0.926</span>
+                        <span>X vel: 0.923</span>
+                        <span>Y vel: 0.907</span>
                     </div>
                 </div>
                 <div class="result-card result-card-best" data-model="lstm">
                     <div class="result-model">LSTM</div>
-                    <div class="result-corr">0.986</div>
+                    <div class="result-corr">0.989</div>
                     <div class="result-label">± 0.000 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.989</span>
-                        <span>Y pos: 0.984</span>
-                        <span>X vel: 0.987</span>
-                        <span>Y vel: 0.984</span>
+                        <span>X pos: 0.992</span>
+                        <span>Y pos: 0.988</span>
+                        <span>X vel: 0.989</span>
+                        <span>Y vel: 0.986</span>
                     </div>
                 </div>
                 <div class="result-card" data-model="cnn2d">
                     <div class="result-model">2D CNN</div>
-                    <div class="result-corr">0.836</div>
-                    <div class="result-label">± 0.047 avg r (5 seeds)</div>
+                    <div class="result-corr">0.960</div>
+                    <div class="result-label">± 0.004 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.743</span>
-                        <span>Y pos: 0.670</span>
-                        <span>X vel: 0.970</span>
-                        <span>Y vel: 0.962</span>
+                        <span>X pos: 0.963</span>
+                        <span>Y pos: 0.954</span>
+                        <span>X vel: 0.962</span>
+                        <span>Y vel: 0.959</span>
                     </div>
                 </div>
                 <div class="result-card" data-model="transformer">
                     <div class="result-model">Transformer</div>
-                    <div class="result-corr">0.982</div>
+                    <div class="result-corr">0.985</div>
                     <div class="result-label">± 0.001 avg r (5 seeds)</div>
                     <div class="result-detail">
-                        <span>X pos: 0.983</span>
-                        <span>Y pos: 0.976</span>
+                        <span>X pos: 0.990</span>
+                        <span>Y pos: 0.985</span>
                         <span>X vel: 0.984</span>
-                        <span>Y vel: 0.983</span>
+                        <span>Y vel: 0.982</span>
                     </div>
                 </div>
             </div>
@@ -267,14 +267,15 @@
             <div class="insight-card">
                 <h3 class="insight-title">Key Insight</h3>
                 <p class="insight-text">
-                    Temporal context is what matters most. Given a 1.6&nbsp;s window, both sequence models decode
-                    kinematics almost perfectly — the <strong>LSTM</strong> leads at <strong>0.986</strong> and the
-                    <strong>Transformer</strong> reaches <strong>0.982</strong>. The Transformer depends on its sinusoidal
-                    positional encoding to do so: without it, self-attention sees the 32-step window as an unordered set and
-                    only reaches 0.74. The single-bin <strong>MLP</strong> is a strong, cheap baseline (0.88) from one
-                    50&nbsp;ms bin, while the <strong>2D CNN</strong> (0.84&nbsp;±&nbsp;0.05) is the most seed-sensitive —
-                    strong on velocity, weaker on absolute position. Reported numbers are mean&nbsp;±&nbsp;std over 5 seeds
-                    (Lambda&nbsp;GPU sweep).
+                    Balancing the loss mattered as much as the architecture. Position (±100) and velocity (±700) differ
+                    ~4× in scale, so an unweighted MSE was dominated by velocity — <strong>z-scoring the four targets</strong>
+                    lifted the <strong>2D CNN 0.84&nbsp;→&nbsp;0.96</strong> and the <strong>MLP 0.88&nbsp;→&nbsp;0.93</strong>
+                    (their earlier "position weakness" was a loss artifact, not the architecture). With that fix all four
+                    models clear 0.93: the <strong>LSTM</strong> leads at <strong>0.989</strong>, the <strong>Transformer</strong>
+                    at <strong>0.985</strong> (it needs sinusoidal positional encoding to use time at all — without it ~0.74),
+                    then the 2D CNN (0.96) and single-bin MLP (0.93). The narrow spread is itself a hint that this single
+                    session is autocorrelated and "easy" — see the Neural Latents Benchmark numbers for a harder test.
+                    Reported numbers are mean&nbsp;±&nbsp;std over 5 seeds (Lambda&nbsp;GPU sweep).
                 </p>
             </div>
         </section>
@@ -290,22 +291,22 @@
                 <div class="plot-card">
                     <h3 class="plot-label">MLP Decode</h3>
                     <img src="../results/single_bin_cnn_decode.png" alt="MLP predicted vs actual hand position">
-                    <p class="plot-caption">From a single 50 ms bin (no temporal context), the MLP reaches 0.88 average correlation — a strong, cheap baseline.</p>
+                    <p class="plot-caption">From a single 50 ms bin (no temporal context), the MLP reaches 0.93 average correlation — a strong, cheap baseline.</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">2D CNN Decode</h3>
                     <img src="../results/spatio_temporal_cnn_decode.png" alt="2D CNN predicted vs actual hand position">
-                    <p class="plot-caption">The 2D CNN excels at velocity (~0.96) but is weaker on absolute position (~0.60); most seed-sensitive at 0.84 ± 0.05.</p>
+                    <p class="plot-caption">With z-scored targets the 2D CNN now tracks position too (~0.96), not just velocity — up from 0.84 when the velocity-dominated loss starved position.</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">LSTM Decode</h3>
                     <img src="../results/lstm_decode.png" alt="LSTM predicted vs actual hand position">
-                    <p class="plot-caption">The LSTM nearly perfectly tracks the actual trajectory — best overall at 0.986 ± 0.000 (most stable across seeds).</p>
+                    <p class="plot-caption">The LSTM nearly perfectly tracks the actual trajectory — best overall at 0.989 ± 0.000 (most stable across seeds).</p>
                 </div>
                 <div class="plot-card">
                     <h3 class="plot-label">Transformer Decode</h3>
                     <img src="../results/transformer_decode.png" alt="Transformer predicted vs actual hand position">
-                    <p class="plot-caption">After adding positional encoding, the Transformer reaches 0.982 ± 0.001 — up from 0.74 when temporal order was ignored.</p>
+                    <p class="plot-caption">With positional encoding, the Transformer reaches 0.985 ± 0.001 — without it, attention ignores temporal order and only reaches ~0.74.</p>
                 </div>
             </div>
         </section>

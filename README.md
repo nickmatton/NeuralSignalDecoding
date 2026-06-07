@@ -12,12 +12,12 @@ Average Pearson `r` on the held-out test set, **mean ± std over 5 seeds** (Lamb
 
 | Model       | Avg r (mean ± std) |
 |-------------|--------------------|
-| LSTM        | **0.986 ± 0.000**  |
-| Transformer | 0.982 ± 0.001      |
-| MLP         | 0.883 ± 0.006      |
-| 2D CNN      | 0.836 ± 0.047      |
+| LSTM        | **0.989 ± 0.000**  |
+| Transformer | 0.985 ± 0.001      |
+| 2D CNN      | 0.960 ± 0.004      |
+| MLP         | 0.928 ± 0.001      |
 
-Sequence models with 1.6 s of temporal context decode kinematics almost perfectly. The Transformer required **sinusoidal positional encoding** to reach parity with the LSTM — without it, attention treats the window as an unordered set and scores only 0.74. Full per-metric breakdown in `sweep_results.json`.
+All four models clear 0.93 once the loss is balanced. Two findings drove the numbers: **(1)** z-scoring the kinematic targets (position and velocity differ ~4× in scale) so the MSE weights all four outputs equally — this alone lifted the 2D CNN **0.84 → 0.96** and the MLP **0.88 → 0.93** (their apparent "position weakness" was a loss-scaling artifact, not architecture); **(2)** the Transformer needs **sinusoidal positional encoding** to use temporal order (without it, attention treats the window as an unordered set and scores ~0.74). Sequence models still lead, but only modestly. Full per-metric breakdown in `sweep_results.json`.
 
 ## Validation on a public benchmark (Neural Latents Benchmark)
 
@@ -27,10 +27,10 @@ Velocity R², **mean ± std over 5 seeds** (Lambda A10 GPU):
 
 | Model       | MC_RTT (Indy, random-target) | MC_Maze (Jenkins, maze reach) |
 |-------------|------------------------------|-------------------------------|
-| LSTM        | 0.602 ± 0.007                | **0.855 ± 0.003**             |
-| Transformer | **0.634 ± 0.006**            | 0.833 ± 0.005                 |
+| LSTM        | **0.606 ± 0.017**            | **0.856 ± 0.002**             |
+| Transformer | 0.584 ± 0.038                | 0.825 ± 0.008                 |
 
-Both land in/near the published ranges (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) — so the decoding skill is real, not an autocorrelation artifact. Neither model dominates across datasets (Transformer wins RTT, LSTM wins Maze). Pipeline in `nlb_data.py` / `train_nlb.py`; results in `nlb_rtt_results.json` / `nlb_maze_results.json`; full runbook in `docs/nlb-experiment.md`.
+Both land in/near the published ranges (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) — so the decoding skill is real, not an autocorrelation artifact. The **LSTM leads on both** datasets here; the small inter-model gaps that look ~equal on the easy single session separate out on these harder benchmarks. (Early stopping uses a contiguous temporal holdout — a random one leaks across stride-1 overlapping windows.) Pipeline in `nlb_data.py` / `train_nlb.py`; results in `nlb_rtt_results.json` / `nlb_maze_results.json`; full runbook in `docs/nlb-experiment.md`.
 
 ## Repo layout
 
