@@ -1,26 +1,26 @@
 {
-  "best_model": "single_bin",
+  "best_model": "spatio_temporal",
   "correlations": {
-    "x_pos": 0.9,
-    "y_pos": 0.825,
-    "x_vel": 0.925,
-    "y_vel": 0.902,
-    "average": 0.888
+    "x_pos": 0.97,
+    "y_pos": 0.961,
+    "x_vel": 0.969,
+    "y_vel": 0.966,
+    "average": 0.966
   },
   "all_results": {
     "single_bin": {
-      "x_pos": 0.9,
-      "y_pos": 0.825,
-      "x_vel": 0.925,
-      "y_vel": 0.902,
-      "average": 0.888
+      "x_pos": 0.954,
+      "y_pos": 0.926,
+      "x_vel": 0.924,
+      "y_vel": 0.907,
+      "average": 0.928
     },
     "spatio_temporal": {
-      "x_pos": 0.597,
-      "y_pos": 0.61,
-      "x_vel": 0.962,
-      "y_vel": 0.954,
-      "average": 0.781
+      "x_pos": 0.97,
+      "y_pos": 0.961,
+      "x_vel": 0.969,
+      "y_vel": 0.966,
+      "average": 0.966
     }
   }
 }

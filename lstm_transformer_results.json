@@ -1,16 +1,16 @@
 {
   "lstm": {
-    "x_pos": 0.989,
-    "y_pos": 0.984,
-    "x_vel": 0.987,
-    "y_vel": 0.983,
-    "average": 0.986
+    "x_pos": 0.992,
+    "y_pos": 0.987,
+    "x_vel": 0.989,
+    "y_vel": 0.986,
+    "average": 0.989
   },
   "transformer": {
-    "x_pos": 0.983,
-    "y_pos": 0.976,
-    "x_vel": 0.985,
-    "y_vel": 0.984,
-    "average": 0.982
+    "x_pos": 0.99,
+    "y_pos": 0.986,
+    "x_vel": 0.984,
+    "y_vel": 0.982,
+    "average": 0.986
   }
 }
