@@ -51,14 +51,19 @@ def evaluate_r2(model, loader, prep, device):
     return vel_r2(np.concatenate(preds), np.concatenate(acts))
 
 
-def carve_estop(X, y, frac=0.15, seed=0):
-    """Random holdout from train for early stopping (not the official val set)."""
+def carve_estop(X, y, frac=0.15, gap=0):
+    """Contiguous temporal holdout from the END of train for early stopping
+    (not the official val set).
+
+    Rows are in time order, so the last `frac` form a clean temporal block — a
+    random shuffle would leak, since stride-1 windows overlap their neighbours by
+    seq_len-1 bins (CLAUDE.md: never shuffle across time). `gap` rows are dropped
+    at the train/holdout seam so the two sides don't share an overlapping window.
+    """
     n = len(y)
-    rng = np.random.default_rng(seed)
-    perm = rng.permutation(n)
     k = int(n * frac)
-    es, tr = perm[:k], perm[k:]
-    return (X[tr], y[tr]), (X[es], y[es])
+    cut = n - k
+    return (X[:max(0, cut - gap)], y[:max(0, cut - gap)]), (X[cut:], y[cut:])
 
 
 def main():
@@ -74,6 +79,9 @@ def main():
     ap.add_argument('--max_train', type=int, default=None,
                     help='cap # train windows (uniform subsample; val kept full). '
                          'Useful for the large MC_Maze train set (stride-1 windows are redundant).')
+    ap.add_argument('--smooth_ms', type=float, default=40.0,
+                    help='Gaussian-smooth spike counts (sigma in ms; 0 = off). '
+                         'Default 40 ms — a quick A/B lifted RTT-LSTM 0.61->0.64 with tighter variance.')
     ap.add_argument('--out', default='nlb_rtt_results.json')
     args = ap.parse_args()
 
@@ -82,8 +90,9 @@ def main():
     device = get_device()
     print(f"Using device: {device}")
     print(f"\nLoading {args.dataset} ({args.bin_ms} ms bins, window {args.seq_len})...")
-    single_bin, windowed, meta = load_nlb(args.nwb, args.dataset, args.bin_ms, args.seq_len)
-    print(f"  {meta['n_channels']} channels, {meta['n_train']} train / {meta['n_val']} val samples, target {meta['vel_field']}")
+    single_bin, windowed, meta = load_nlb(args.nwb, args.dataset, args.bin_ms, args.seq_len, args.smooth_ms)
+    print(f"  {meta['n_channels']} channels, {meta['n_train']} train / {meta['n_val']} val samples, target {meta['vel_field']}"
+          + (f", smoothed σ={args.smooth_ms}ms" if args.smooth_ms else ""))
     data = {'single': single_bin, 'window': windowed}
     C, O = meta['n_channels'], meta['n_outputs']
 
@@ -102,8 +111,12 @@ def main():
         for key, name, ctor, dk, prep in run_models:
             set_seed(seed)
             X_tr, y_tr = data[dk]['train']
-            (Xt, yt), (Xe, ye) = carve_estop(X_tr, y_tr, seed=seed)
-            tr = make_loader(Xt, yt, 64, shuffle=True)
+            # window models use overlapping stride-1 windows: drop seq_len-1 rows
+            # at the seam so train/holdout don't share a window. (single-bin: 0)
+            gap = args.seq_len - 1 if dk == 'window' else 0
+            (Xt, yt), (Xe, ye) = carve_estop(X_tr, y_tr, gap=gap)
+            # drop_last: BatchNorm1d throws on a size-1 final train batch
+            tr = make_loader(Xt, yt, 64, shuffle=True, drop_last=True)
             es = make_loader(Xe, ye, 64)
             va = make_loader(*data[dk]['val'], 64)
 

@@ -38,11 +38,12 @@ def _bin_split(bin_times_s, trial_info):
     return split
 
 
-def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12):
+def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12, smooth_sigma_ms=0.0):
     """Load + bin a dataset for velocity decoding.
 
     bin_ms: resample width (native is 1 ms). seq_len: window length (bins) for
-    the sequence/CNN models.
+    the sequence/CNN models. smooth_sigma_ms: if >0, Gaussian-smooth each channel's
+    spike-count time series (a firing-rate estimate; denoises the input).
     """
     vel_field = VEL_FIELD[dataset]
     ds = NWBDataset(nwb_path, split_heldout=True)
@@ -65,6 +66,15 @@ def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12):
     bad_bin = np.isnan(vel).any(axis=1) | ~np.isfinite(spikes).all(axis=1)
     split[bad_bin] = 'none'
     finite_bin = ~bad_bin
+
+    # Optional Gaussian smoothing of the spike counts (firing-rate estimate).
+    # Gap bins are zeroed first so NaNs don't spread across the kernel; the gap
+    # exclusion above already used the raw finiteness, so it's unaffected.
+    if smooth_sigma_ms and smooth_sigma_ms > 0:
+        from scipy.ndimage import gaussian_filter1d
+        spikes = gaussian_filter1d(
+            np.nan_to_num(spikes, nan=0.0), sigma=smooth_sigma_ms / bin_ms, axis=0
+        ).astype(np.float32)
 
     # Z-score spikes AND velocity targets using TRAIN bins only. Normalizing the
     # targets keeps MSE well-conditioned (raw finger velocity is large-magnitude
