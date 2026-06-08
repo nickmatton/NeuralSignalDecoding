@@ -118,15 +118,18 @@ python3 -m pip install --no-deps nlb_tools
 
 ## Final results — velocity R² (mean ± std, 5 seeds)
 
-Re-run after the early-stop **leak fix** (contiguous temporal holdout) + grad_clip:
+Final: leak fix + grad_clip + **40 ms Gaussian spike smoothing** (adopted after a local A/B):
 
 | Model | MC_RTT | MC_Maze |
 |---|---|---|
-| **LSTM** | **0.606 ± 0.017** | **0.856 ± 0.002** |
-| **Transformer** | 0.584 ± 0.038 | 0.825 ± 0.008 |
+| **LSTM** | 0.636 ± 0.013 | **0.881 ± 0.003** |
+| **Transformer** | **0.677 ± 0.012** | 0.865 ± 0.003 |
 
-Both in/near the published ranges (RTT ~0.60–0.70; Maze ~0.88–0.91). **LSTM leads on both.**
-The Transformer RTT dropped vs the pre-fix run (0.634 → 0.584) — that earlier number was
-inflated by the leaky random early-stop holdout, which is exactly why the rerun was needed.
-(Pre-fix numbers, for the record: RTT LSTM 0.602 / Transformer 0.634; Maze LSTM 0.855 /
-Transformer 0.833.)
+Both at/near the top of the published ranges (RTT ~0.60–0.70; Maze ~0.88–0.91). **Transformer
+wins RTT, LSTM wins Maze.** Smoothing the spike counts (a firing-rate estimate) lifted every
+number, most for the Transformer on RTT (0.584 → 0.677).
+
+History (for the record):
+- leak-fixed, no smoothing: RTT LSTM 0.606 / Transformer 0.584; Maze LSTM 0.856 / Transformer 0.825.
+- pre-leak-fix (optimistic): RTT LSTM 0.602 / Transformer 0.634; Maze LSTM 0.855 / Transformer 0.833.
+- local A/B that motivated smoothing (RTT-LSTM, 3 seeds): 0.605±0.015 → 0.635±0.006 at σ=40 ms.

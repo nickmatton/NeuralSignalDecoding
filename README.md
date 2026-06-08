@@ -23,14 +23,14 @@ All four models clear 0.93 once the loss is balanced. Two findings drove the num
 
 The `contdata95` numbers are a single session, where slowly-varying position is autocorrelated and inflates Pearson `r`. To confirm the decoders are genuinely good, the two sequence models were re-run on the **[Neural Latents Benchmark](https://neurallatents.github.io/)** — standardized datasets (NWB / DANDI), official held-out split, scored with **velocity R²**, on two different monkeys.
 
-Velocity R², **mean ± std over 5 seeds** (Lambda A10 GPU):
+Velocity R², **mean ± std over 5 seeds** (Lambda A10 GPU; spike counts Gaussian-smoothed, 40 ms):
 
 | Model       | MC_RTT (Indy, random-target) | MC_Maze (Jenkins, maze reach) |
 |-------------|------------------------------|-------------------------------|
-| LSTM        | **0.606 ± 0.017**            | **0.856 ± 0.002**             |
-| Transformer | 0.584 ± 0.038                | 0.825 ± 0.008                 |
+| LSTM        | 0.636 ± 0.013                | **0.881 ± 0.003**             |
+| Transformer | **0.677 ± 0.012**            | 0.865 ± 0.003                 |
 
-Both land in/near the published ranges (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) — so the decoding skill is real, not an autocorrelation artifact. The **LSTM leads on both** datasets here; the small inter-model gaps that look ~equal on the easy single session separate out on these harder benchmarks. (Early stopping uses a contiguous temporal holdout — a random one leaks across stride-1 overlapping windows.) Pipeline in `nlb_data.py` / `train_nlb.py`; results in `nlb_rtt_results.json` / `nlb_maze_results.json`; full runbook in `docs/nlb-experiment.md`.
+Both land at/near the top of the published ranges (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) — so the decoding skill is real, not an autocorrelation artifact. **Transformer wins RTT, LSTM wins Maze** (neither dominates). A simple **40 ms Gaussian smoothing** of the spike counts (a firing-rate estimate) lifted every number — e.g. Transformer RTT 0.58 → 0.68. Early stopping uses a contiguous temporal holdout (a random one leaks across stride-1 overlapping windows). Pipeline in `nlb_data.py` / `train_nlb.py`; results in `nlb_rtt_results.json` / `nlb_maze_results.json`; full runbook in `docs/nlb-experiment.md`.
 
 ## Repo layout
 

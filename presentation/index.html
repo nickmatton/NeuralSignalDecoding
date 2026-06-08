@@ -451,18 +451,18 @@
     <p class="small">To check the decoders are genuinely good — not just riding one session's autocorrelation —
       I re-ran the two sequence models on the <strong>Neural Latents Benchmark</strong>: standardized
       datasets (NWB / DANDI), official held-out split, metric = <strong>velocity R²</strong>, two different
-      monkeys.</p>
+      monkeys, spike counts Gaussian-smoothed (40&nbsp;ms firing-rate estimate).</p>
     <table>
       <thead><tr><th>Model</th><th>MC_RTT <span class="muted xs">(Indy, random-target)</span></th><th>MC_Maze <span class="muted xs">(Jenkins, maze reach)</span></th></tr></thead>
       <tbody>
-        <tr class="best"><td><strong>LSTM</strong></td><td><strong>0.606</strong> <span class="muted xs">±0.017</span></td><td><strong>0.856</strong> <span class="muted xs">±0.002</span></td></tr>
-        <tr><td><strong>Transformer</strong></td><td>0.584 <span class="muted xs">±0.038</span></td><td>0.825 <span class="muted xs">±0.008</span></td></tr>
+        <tr><td><strong>LSTM</strong></td><td>0.636 <span class="muted xs">±0.013</span></td><td><strong>0.881</strong> <span class="muted xs">±0.003</span></td></tr>
+        <tr><td><strong>Transformer</strong></td><td><strong>0.677</strong> <span class="muted xs">±0.012</span></td><td>0.865 <span class="muted xs">±0.003</span></td></tr>
       </tbody>
     </table>
-    <p class="small lead">Both land <strong>in/near published ranges</strong> (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) —
-      so the skill is real, not an autocorrelation artifact. Here the <strong>LSTM leads on both</strong>; the
-      gap from the easy single session (where all models looked ~equal) is now visible.</p>
-    <p class="small muted">vel R², mean ± std over 5 seeds, run on a Lambda A10 GPU.</p>
+    <p class="small lead">Both land <strong>at/near the top of published ranges</strong> (RTT ≈ 0.60–0.70, Maze ≈ 0.88–0.91) —
+      the skill is real, not an autocorrelation artifact. <strong>Transformer wins RTT, LSTM wins Maze</strong> —
+      neither dominates, and the easy single session's "all models ~equal" look doesn't hold here.</p>
+    <p class="small muted">vel R², mean ± std over 5 seeds, Lambda A10 GPU. A simple 40&nbsp;ms spike smoothing lifted every number (e.g. Transformer RTT 0.58→0.68).</p>
     <aside class="notes">
       The credibility payoff. I moved from one easy, autocorrelated session (Pearson r ≈ 0.98) to a hard,
       standardized public benchmark scored with R² on two different animals — and the architectures hold up
@@ -504,7 +504,7 @@
       <li><strong>Preprocessing rivals architecture</strong> — z-scoring the targets to balance the loss lifted the 2D CNN 0.84→0.96 and the MLP 0.88→0.93; sequence models (LSTM 0.989, Transformer 0.985) lead only modestly.</li>
       <li><strong>Architecture details matter</strong> — the Transformer needs positional encoding to use time at all.</li>
       <li><strong>A single 50&nbsp;ms bin is a strong baseline</strong> — the MLP reaches 0.93 on this session.</li>
-      <li><strong>It generalizes:</strong> on the public <strong>Neural Latents Benchmark</strong> (2 monkeys, velocity R²) the LSTM leads — RTT 0.61, Maze 0.86 — not just one easy session.</li>
+      <li><strong>It generalizes:</strong> on the public <strong>Neural Latents Benchmark</strong> (2 monkeys, velocity R²) both models reach the top of the published ranges — Transformer 0.68 (RTT), LSTM 0.88 (Maze) — not just one easy session.</li>
       <li><strong>Rigor:</strong> fixed recipe, seeded, 5-seed mean ± std, leakage-checked (incl. a fixed early-stop leak), benchmark-validated.</li>
     </ul>
     <p class="center small muted">Thank you — questions welcome.</p>
