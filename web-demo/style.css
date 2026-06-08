@@ -367,6 +367,11 @@ body {
 
 .result-card-best .result-detail { color: #aaa; }
 
+/* NLB result cards: 4-up */
+.nlb-results-grid { grid-template-columns: repeat(4, 1fr); margin-top: 1.5rem; }
+.nlb-results-grid .result-corr { font-size: 2rem; }
+#nlb-reach-label { color: var(--text-muted); font-weight: 400; }
+
 /* Architecture Section */
 .arch-section {
     margin-bottom: 3rem;

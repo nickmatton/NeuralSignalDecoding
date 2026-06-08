@@ -56,7 +56,7 @@
         </section>
 
         <!-- Live Decoding Visualization -->
-        <section class="viz-section">
+        <section class="viz-section" id="live-replay">
             <div class="section-header">
                 <h2 class="section-title">Live Decoding Replay</h2>
                 <p class="section-desc">Watch each model decode hand position from neural activity in real-time, on one representative run from the held-out test set. Blue = actual trajectory, red = model prediction. (The headline metrics below are 5-seed means.)</p>
@@ -280,6 +280,93 @@
             </div>
         </section>
 
+        <!-- NLB Tracking (Neural Latents Benchmark — MC_RTT) -->
+        <section class="viz-section" id="nlb">
+            <div class="section-header">
+                <h2 class="section-title">A harder test — Neural Latents Benchmark (MC_RTT)</h2>
+                <p class="section-desc">
+                    The same four models, retrained on the public <strong>MC_RTT</strong> benchmark: 98-channel motor
+                    cortex recorded during continuous random-target finger tracking, decoding <strong>velocity</strong> at
+                    20&nbsp;ms bins. Each panel below is a real held-out reach — we integrate the decoded vs. true velocity
+                    into a 2D cursor path (blue = true, red = decoded) and play the reaches back to back. Unlike the easy
+                    single session above, the sequence models (LSTM/Transformer) now open a clear gap over the single-bin MLP.
+                    Headline numbers are velocity&nbsp;R² (5-seed mean&nbsp;±&nbsp;std).
+                </p>
+            </div>
+
+            <div class="model-tabs" id="nlb-tabs">
+                <button class="model-tab nlb-model-tab active" data-model="transformer">Transformer</button>
+                <button class="model-tab nlb-model-tab" data-model="lstm">LSTM</button>
+                <button class="model-tab nlb-model-tab" data-model="cnn2d">2D CNN</button>
+                <button class="model-tab nlb-model-tab" data-model="mlp">MLP</button>
+            </div>
+
+            <div class="viz-container">
+                <div class="viz-panel viz-neural">
+                    <div class="viz-subpanel">
+                        <div class="panel-label">Spike Traces (24 of 98 ch)</div>
+                        <canvas id="nlb-neural-canvas"></canvas>
+                    </div>
+                    <div class="viz-subpanel">
+                        <div class="panel-label">Spike-Count Heatmap (98 channels)</div>
+                        <canvas id="nlb-heatmap-canvas"></canvas>
+                    </div>
+                </div>
+                <div class="viz-divider">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </div>
+                <div class="viz-panel viz-decode">
+                    <div class="panel-label">Decoded Cursor Path <span id="nlb-reach-label"></span></div>
+                    <canvas id="nlb-decode-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="viz-controls">
+                <button id="nlb-btn-play" class="control-btn">
+                    <svg id="nlb-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <svg id="nlb-icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                </button>
+                <button id="nlb-btn-reset" class="control-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+                <div class="speed-control">
+                    <label>Speed:</label>
+                    <input type="range" id="nlb-speed-slider" min="1" max="10" value="2">
+                </div>
+                <div class="live-corr">
+                    <span class="corr-label">Vel R²:</span>
+                    <span id="nlb-live-r2-value" class="corr-value">—</span>
+                </div>
+            </div>
+
+            <div class="results-grid nlb-results-grid">
+                <div class="result-card nlb-result-card" data-model="mlp">
+                    <div class="result-model">MLP</div>
+                    <div class="result-corr">—</div>
+                    <div class="result-label">vel R² (5 seeds)</div>
+                    <div class="result-detail"><span></span></div>
+                </div>
+                <div class="result-card nlb-result-card" data-model="cnn2d">
+                    <div class="result-model">2D CNN</div>
+                    <div class="result-corr">—</div>
+                    <div class="result-label">vel R² (5 seeds)</div>
+                    <div class="result-detail"><span></span></div>
+                </div>
+                <div class="result-card nlb-result-card" data-model="lstm">
+                    <div class="result-model">LSTM</div>
+                    <div class="result-corr">—</div>
+                    <div class="result-label">vel R² (5 seeds)</div>
+                    <div class="result-detail"><span></span></div>
+                </div>
+                <div class="result-card nlb-result-card result-card-best" data-model="transformer">
+                    <div class="result-model">Transformer</div>
+                    <div class="result-corr">—</div>
+                    <div class="result-label">vel R² (5 seeds)</div>
+                    <div class="result-detail"><span></span></div>
+                </div>
+            </div>
+        </section>
+
         <!-- Original Plots -->
         <section class="plots-section">
             <div class="section-header">
@@ -318,5 +405,7 @@
 
     <script src="results.js"></script>
     <script src="demo.js"></script>
+    <script src="nlb_results.js"></script>
+    <script src="nlb-demo.js"></script>
 </body>
 </html>

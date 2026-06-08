@@ -38,12 +38,20 @@ def _bin_split(bin_times_s, trial_info):
     return split
 
 
-def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12, smooth_sigma_ms=0.0):
-    """Load + bin a dataset for velocity decoding.
+def load_binned(nwb_path, dataset='mc_rtt', bin_ms=20, smooth_sigma_ms=0.0):
+    """Bin + z-score a dataset to a time-ordered timeline (no windowing).
 
-    bin_ms: resample width (native is 1 ms). seq_len: window length (bins) for
-    the sequence/CNN models. smooth_sigma_ms: if >0, Gaussian-smooth each channel's
-    spike-count time series (a firing-rate estimate; denoises the input).
+    Shared core of load_nlb; also used by the web-demo exporter, which needs the
+    bins in time order (to integrate decoded velocity into a contiguous
+    trajectory) plus the target denormalization stats.
+
+    Returns a dict with:
+        spikes     (T, C) z-scored spike counts (train-stat normalized)
+        vel        (T, 2) z-scored x/y velocity (train-stat normalized)
+        split      (T,)   per-bin 'train'/'val'/'none' label
+        finite_bin (T,)   bool, False on recording-gap bins
+        vmu, vsd   (2,)   velocity mean/std used to z-score (for de-normalizing)
+        vel_field  str    name of the behavioral velocity field
     """
     vel_field = VEL_FIELD[dataset]
     ds = NWBDataset(nwb_path, split_heldout=True)
@@ -91,6 +99,21 @@ def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12, smooth_sigma_ms=
     vsd[vsd == 0] = 1.0
     vel = (vel - vmu) / vsd
 
+    return {'spikes': spikes, 'vel': vel, 'split': split, 'finite_bin': finite_bin,
+            'vmu': vmu, 'vsd': vsd, 'vel_field': vel_field}
+
+
+def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12, smooth_sigma_ms=0.0):
+    """Load + bin a dataset for velocity decoding.
+
+    bin_ms: resample width (native is 1 ms). seq_len: window length (bins) for
+    the sequence/CNN models. smooth_sigma_ms: if >0, Gaussian-smooth each channel's
+    spike-count time series (a firing-rate estimate; denoises the input).
+    """
+    binned = load_binned(nwb_path, dataset, bin_ms, smooth_sigma_ms)
+    spikes, vel = binned['spikes'], binned['vel']
+    split, finite_bin = binned['split'], binned['finite_bin']
+
     def collect(label):
         # Causal windows of past `seq_len` bins ending at bin i; single bin = spikes[i].
         idx = np.where(split == label)[0]
@@ -111,7 +134,7 @@ def load_nlb(nwb_path, dataset='mc_rtt', bin_ms=20, seq_len=12, smooth_sigma_ms=
     windowed = {'train': (w_tr, y_tr), 'val': (w_va, y_va)}
 
     meta = {'n_channels': spikes.shape[1], 'n_outputs': 2, 'bin_ms': bin_ms,
-            'seq_len': seq_len, 'vel_field': vel_field,
+            'seq_len': seq_len, 'vel_field': binned['vel_field'],
             'n_train': len(y_tr), 'n_val': len(y_va)}
     return single_bin, windowed, meta
 

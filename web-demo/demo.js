@@ -378,7 +378,7 @@
 
     // --- Populate the result cards from real correlations ---
     function fillResultCards() {
-        document.querySelectorAll('.result-card[data-model]').forEach(card => {
+        document.querySelectorAll('.compare-section .result-card[data-model]').forEach(card => {
             const m = models[card.dataset.model];
             if (!m) return;
             const st = m.stats;
@@ -413,11 +413,11 @@
         speed = parseInt(e.target.value, 10);
     });
 
-    document.querySelectorAll('.model-tab').forEach(tab => {
+    document.querySelectorAll('#live-replay .model-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const key = tab.dataset.model;
             if (!models[key]) return;
-            document.querySelector('.model-tab.active').classList.remove('active');
+            document.querySelector('#live-replay .model-tab.active').classList.remove('active');
             tab.classList.add('active');
             currentModel = key;
             updateCorrelation();
